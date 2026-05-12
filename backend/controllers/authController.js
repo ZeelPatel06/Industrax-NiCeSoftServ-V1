@@ -232,9 +232,13 @@ const verifyOTP = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/logout
 // @access  Public
 const logoutUser = asyncHandler(async (req, res) => {
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie('jwt', '', {
         httpOnly: true,
-        expires: new Date(0),
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
+        expires: new Date(0), // Immediately expire
     });
 
     res.status(200).json({ message: 'User logged out successfully' });

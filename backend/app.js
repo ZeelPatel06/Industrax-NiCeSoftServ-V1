@@ -36,6 +36,10 @@ connectDB();
 
 const app = express();
 
+// MUST be first — tells Express to trust the reverse proxy (Nginx/Render/Railway)
+// so req.secure works correctly and secure cookies are set properly
+app.set('trust proxy', 1);
+
 // Middleware
 // Set security headers
 app.use(helmet({
@@ -56,9 +60,20 @@ const globalLimiter = rateLimit({
 });
 app.use('/api', globalLimiter);
 
+const allowedOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:5173',
+    'http://localhost:5173',
+    'http://localhost:3000',
+].filter(Boolean);
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, Postman, curl)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error(`CORS: Origin ${origin} not allowed`));
+    },
+    credentials: true, // Required for cookies to be sent cross-origin
 }));
 app.use(express.json());
 app.use(cookieParser());
@@ -90,7 +105,6 @@ app.get('/', (req, res) => {
 });
 
 app.use(notFound);
-app.set("trust proxy", 1);
 app.use(errorHandler);
 
 export default app;

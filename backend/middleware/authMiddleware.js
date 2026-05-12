@@ -3,7 +3,12 @@ import User from '../models/User.js';
 import asyncHandler from './asyncHandler.js';
 
 const protect = asyncHandler(async (req, res, next) => {
+    // Accept token from cookie OR Authorization Bearer header (fallback for cross-origin)
     let token = req.cookies.jwt;
+
+    if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        token = req.headers.authorization.split(' ')[1];
+    }
 
     if (token) {
         try {
