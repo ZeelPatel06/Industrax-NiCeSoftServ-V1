@@ -1,0 +1,41 @@
+.global-loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.7); /* Match the theme's dark background with opacity */
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999; /* Ensure it's above everything else */
+    gap: 1.5rem;
+}
+
+.global-loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 3px solid rgba(99, 102, 241, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: global-spin 1s ease-in-out infinite;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+}
+
+.global-loading-text {
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    color: var(--primary-color);
+    text-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+}
+
+@keyframes global-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Optional fade in/out animations */
+.global-loader-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}

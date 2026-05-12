@@ -1,0 +1,11 @@
+- [ ] **Phase 1: Job Work Validation Fix**
+  - [ ] Update `JobWorkOrder.js` model: Remove `required` from `materialName`
+  - [ ] Update `JobWorkOrders.jsx`: Fix total amount summary logic
+  - [ ] Update `JobWorkOrders.jsx`: Standardize units to lowercase (`pcs`, `kg`, `mtr`)
+- [ ] **Phase 2: Global Unit Standardization**
+  - [ ] Update `Materials.jsx`: Force lowercase units
+  - [ ] Update `Products.jsx`: Force lowercase units
+  - [ ] Update `Inventory.jsx`: Force lowercase units
+- [ ] **Phase 3: Final UI/UX Audit**
+  - [ ] Review `Attendance.jsx` UI consistency
+  - [ ] Verify Staff login and self-attendance flow
