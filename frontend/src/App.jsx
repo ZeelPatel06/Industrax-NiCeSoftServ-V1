@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import GlobalLoader from './components/GlobalLoader';
@@ -120,7 +120,11 @@ function App() {
   }, []);
 
   if (!isOnline) {
-    return <Offline />;
+    return (
+      <Suspense fallback={<PageFallback />}>
+        <Offline />
+      </Suspense>
+    );
   }
 
   return (
@@ -135,37 +139,35 @@ function App() {
         }}
       />
       <Suspense fallback={<PageFallback />}>
-        <Router>
-          <Routes>
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        <Routes>
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
-            <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
 
-            {/* Module Protected Routes */}
-            <Route path="/products" element={<PrivateRoute><ModuleGuard module="products"><Products /></ModuleGuard></PrivateRoute>} />
-            <Route path="/parts" element={<PrivateRoute><ModuleGuard module="parts"><Parts /></ModuleGuard></PrivateRoute>} />
-            <Route path="/materials" element={<PrivateRoute><ModuleGuard module="materials"><Materials /></ModuleGuard></PrivateRoute>} />
-            <Route path="/inventory" element={<PrivateRoute><ModuleGuard module="inventory"><Inventory /></ModuleGuard></PrivateRoute>} />
-            <Route path="/bom" element={<PrivateRoute><ModuleGuard module="bom"><BOM /></ModuleGuard></PrivateRoute>} />
-            <Route path="/orders" element={<PrivateRoute><ModuleGuard module="orders"><Orders /></ModuleGuard></PrivateRoute>} />
-            <Route path="/production" element={<PrivateRoute><ModuleGuard module="production"><Production /></ModuleGuard></PrivateRoute>} />
-            <Route path="/attendance" element={<PrivateRoute><ModuleGuard module="attendance"><Attendance /></ModuleGuard></PrivateRoute>} />
-            <Route path="/employees" element={<PrivateRoute><ModuleGuard module="employees"><Employees /></ModuleGuard></PrivateRoute>} />
-            <Route path="/invoices" element={<PrivateRoute><ModuleGuard module="invoices"><Invoices /></ModuleGuard></PrivateRoute>} />
-            <Route path="/machines" element={<PrivateRoute><ModuleGuard module="machines"><Machines /></ModuleGuard></PrivateRoute>} />
+          {/* Module Protected Routes */}
+          <Route path="/products" element={<PrivateRoute><ModuleGuard module="products"><Products /></ModuleGuard></PrivateRoute>} />
+          <Route path="/parts" element={<PrivateRoute><ModuleGuard module="parts"><Parts /></ModuleGuard></PrivateRoute>} />
+          <Route path="/materials" element={<PrivateRoute><ModuleGuard module="materials"><Materials /></ModuleGuard></PrivateRoute>} />
+          <Route path="/inventory" element={<PrivateRoute><ModuleGuard module="inventory"><Inventory /></ModuleGuard></PrivateRoute>} />
+          <Route path="/bom" element={<PrivateRoute><ModuleGuard module="bom"><BOM /></ModuleGuard></PrivateRoute>} />
+          <Route path="/orders" element={<PrivateRoute><ModuleGuard module="orders"><Orders /></ModuleGuard></PrivateRoute>} />
+          <Route path="/production" element={<PrivateRoute><ModuleGuard module="production"><Production /></ModuleGuard></PrivateRoute>} />
+          <Route path="/attendance" element={<PrivateRoute><ModuleGuard module="attendance"><Attendance /></ModuleGuard></PrivateRoute>} />
+          <Route path="/employees" element={<PrivateRoute><ModuleGuard module="employees"><Employees /></ModuleGuard></PrivateRoute>} />
+          <Route path="/invoices" element={<PrivateRoute><ModuleGuard module="invoices"><Invoices /></ModuleGuard></PrivateRoute>} />
+          <Route path="/machines" element={<PrivateRoute><ModuleGuard module="machines"><Machines /></ModuleGuard></PrivateRoute>} />
 
-            <Route path="/data-management" element={<PrivateRoute><DataManagement /></PrivateRoute>} />
-            <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+          <Route path="/data-management" element={<PrivateRoute><DataManagement /></PrivateRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
-            <Route path="/onboarding" element={isAuthenticated() ? <Onboarding /> : <Navigate to="/login" replace />} />
-            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+          <Route path="/onboarding" element={isAuthenticated() ? <Onboarding /> : <Navigate to="/login" replace />} />
+          <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
 
-            {/* 404 Route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Router>
+          {/* 404 Route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </Suspense>
     </>
   );
