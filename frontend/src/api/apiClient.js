@@ -27,6 +27,20 @@ const stopRequest = () => {
 apiClient.interceptors.request.use(
     (config) => {
         startRequest();
+        
+        // Fallback for when cookies are blocked/not available
+        const userInfo = localStorage.getItem('userInfo');
+        if (userInfo && userInfo !== 'undefined') {
+            try {
+                const parsed = JSON.parse(userInfo);
+                if (parsed.token) {
+                    config.headers.Authorization = `Bearer ${parsed.token}`;
+                }
+            } catch (e) {
+                console.error("Error parsing userInfo for token", e);
+            }
+        }
+        
         return config;
     },
     (error) => {

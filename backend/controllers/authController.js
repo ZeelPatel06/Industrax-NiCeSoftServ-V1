@@ -3,6 +3,7 @@ import generateToken from '../utils/generateToken.js';
 import bcrypt from 'bcryptjs';
 import asyncHandler from '../middleware/asyncHandler.js';
 import { sendOTPEmail } from '../utils/emailService.js';
+import mongoose from 'mongoose';
 
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
@@ -51,10 +52,13 @@ const authUser = asyncHandler(async (req, res) => {
         if (canonicalRole !== 'Owner' && !selectedModules.length) {
             const ownerId = user.owner;
             if (ownerId) {
-                const owner = await User.findOne({ 
-                    $or: [{ email: ownerId }, { _id: ownerId }], 
-                    isDeleted: false 
-                });
+                const query = { isDeleted: false };
+                if (mongoose.Types.ObjectId.isValid(ownerId)) {
+                    query.$or = [{ _id: ownerId }, { email: ownerId }];
+                } else {
+                    query.email = ownerId;
+                }
+                const owner = await User.findOne(query);
                 if (owner) selectedModules = owner.selectedModules || [];
             }
         }
@@ -75,6 +79,7 @@ const authUser = asyncHandler(async (req, res) => {
             role: canonicalRole,
             selectedModules,
             companyProfile,
+            token: generateToken(res, user._id), // Return token in body as fallback
         });
     } else {
         res.status(401);
@@ -154,6 +159,7 @@ const registerUser = asyncHandler(async (req, res) => {
                 role: user.role,
                 selectedModules: [],
                 isVerified: true,
+                token: generateToken(res, user._id), // Return token in body as fallback
                 message: 'Development Mode: User registered and verified automatically'
             });
         }
@@ -224,6 +230,7 @@ const verifyOTP = asyncHandler(async (req, res) => {
         name: user.name,
         role: canonicalRole,
         selectedModules,
+        token: generateToken(res, user._id), // Return token in body as fallback
         message: 'Account verified successfully'
     });
 });
