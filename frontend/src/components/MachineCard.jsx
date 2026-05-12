@@ -3,7 +3,9 @@ import { Edit2, PowerOff, Settings, AlertTriangle, Play, Coffee, User } from 'lu
 
 const MachineCard = ({ machine, onEdit, onDeactivate }) => {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const isRestrictedRole = ['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role);
     const isOwner = userInfo.role === 'Owner';
+    const canEditAdmin = !isRestrictedRole;
     
     const getStatusStyles = (status) => {
         switch (status) {
@@ -102,7 +104,7 @@ const MachineCard = ({ machine, onEdit, onDeactivate }) => {
                     onClick={() => onEdit(machine)} 
                     style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', fontSize: '0.9rem' }}
                 >
-                    <Edit2 size={16} /> {isOwner ? 'Edit' : 'Update Status'}
+                    <Edit2 size={16} /> {canEditAdmin ? 'Edit' : 'Update Status'}
                 </button>
                 {isOwner && (
                     <button 

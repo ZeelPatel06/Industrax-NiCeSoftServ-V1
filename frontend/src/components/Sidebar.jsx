@@ -7,7 +7,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     const [collapsed, setCollapsed] = useState(false);
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const canAccessData = userInfo?.role === 'Owner' || userInfo?.role === 'Engineer';
-    const isOperator = userInfo?.role === 'Operator';
+    const isRestrictedRole = ['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role);
     const selectedModules = userInfo?.selectedModules || [];
     const hasModule = (moduleName) => selectedModules.includes(moduleName);
 
@@ -45,7 +45,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             </div>
 
             <nav style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                {(isOperator ? [
+                {(isRestrictedRole ? [
                     ...(hasModule('production') ? [{ to: '/production', icon: <Hammer size={20} style={iconStyle} />, label: 'Production', sub: 'Track ongoing work' }] : []),
                     ...(hasModule('machines') ? [{ to: '/machines', icon: <Factory size={20} style={iconStyle} />, label: 'Machines', sub: 'Manage equipment' }] : []),
                     ...(hasModule('attendance') ? [{ to: '/attendance', icon: <CalendarCheck size={20} style={iconStyle} />, label: 'My Attendance', sub: 'Mark your presence' }] : []),

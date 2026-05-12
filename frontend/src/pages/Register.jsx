@@ -41,7 +41,8 @@ const Register = () => {
                 }
                 localStorage.setItem("userInfo", JSON.stringify(data));
                 const hasOnboarded = data.role === 'Owner' ? (Array.isArray(data.selectedModules) && data.selectedModules.length > 0) : true;
-                const redirectPath = data.role === 'Operator' ? '/production' : (!hasOnboarded ? '/onboarding' : '/dashboard');
+                const isRestrictedRole = ['Operator', 'Worker', 'Helper', 'Labour'].includes(data.role);
+                const redirectPath = isRestrictedRole ? '/production' : (!hasOnboarded ? '/onboarding' : '/dashboard');
                 window.location.href = redirectPath;
                 return;
             }
@@ -64,7 +65,8 @@ const Register = () => {
             }
             localStorage.setItem("userInfo", JSON.stringify(data));
             const hasOnboarded = data.role === 'Owner' ? (Array.isArray(data.selectedModules) && data.selectedModules.length > 0) : true;
-            const redirectPath = data.role === 'Operator' ? '/production' : (!hasOnboarded ? '/onboarding' : '/dashboard');
+            const isRestrictedRole = ['Operator', 'Worker', 'Helper', 'Labour'].includes(data.role);
+            const redirectPath = isRestrictedRole ? '/production' : (!hasOnboarded ? '/onboarding' : '/dashboard');
             window.location.href = redirectPath;
         } catch (err) {
             setError(err.response?.data?.message || err.message);

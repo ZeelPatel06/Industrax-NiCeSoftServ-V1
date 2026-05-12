@@ -89,7 +89,7 @@ const PublicRoute = ({ children }) => {
     const stored = localStorage.getItem('userInfo');
     if (stored && stored !== 'undefined') {
       const userInfo = JSON.parse(stored);
-      if (userInfo?.role === 'Operator') return <Navigate to="/production" replace />;
+      if (['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) return <Navigate to="/production" replace />;
       if (userInfo?.role === 'Owner') {
         const hasOnboarded = Array.isArray(userInfo.selectedModules) && userInfo.selectedModules.length > 0;
         return <Navigate to={hasOnboarded ? '/dashboard' : '/onboarding'} replace />;

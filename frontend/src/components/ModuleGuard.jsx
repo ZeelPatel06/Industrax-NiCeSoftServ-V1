@@ -14,7 +14,8 @@ const ModuleGuard = ({ module, children }) => {
 
     if (module && hasOnboarded && !selectedModules.includes(module)) {
         // If they don't have access to this module, redirect them
-        const redirectPath = userInfo.role === 'Operator' ? '/production' : '/dashboard';
+        const isRestrictedRole = ['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo.role);
+        const redirectPath = isRestrictedRole ? '/production' : '/dashboard';
         return <Navigate to={redirectPath} replace />;
     }
 

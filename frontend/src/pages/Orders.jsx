@@ -409,7 +409,7 @@ const Orders = () => {
                         />
                         <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                     </div>
-                    {userInfo?.role !== 'Operator' && (
+                    {(!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
                         <button className="btn btn-primary" onClick={() => {
                             if (activeTab === 'Standard') {
                                 setStandardEditMode(false);
@@ -492,7 +492,7 @@ const Orders = () => {
                                                 style={{ width: '130px', padding: '0.4rem', fontSize: '0.8rem' }}
                                                 value={order.status}
                                                 onChange={(e) => handleStatusChange(order._id, e.target.value)}
-                                                disabled={userInfo?.role === 'Operator'}
+                                                disabled={['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)}
                                             >
                                                 <option value="Draft">Draft</option>
                                                 <option value="Approved">Approve</option>

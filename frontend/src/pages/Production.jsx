@@ -321,7 +321,7 @@ const Production = () => {
                         />
                         <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}>🔍</span>
                     </div>
-                    {userInfo?.role !== 'Operator' && (
+                    {(!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
                         <button className="btn btn-primary" onClick={() => {
                             setIsEdit(false);
                             setEditJobId(null);
@@ -336,7 +336,7 @@ const Production = () => {
             </div>
 
             <div className="glass-card table-container">
-                {userInfo?.role === 'Operator' ? (
+                {(['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) ? (
                     <div style={{ display: 'grid', gap: '20px' }}>
                         <h2 style={{ fontSize: '1.2rem', marginBottom: '5px' }}>Actionable Jobs</h2>
                         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>Start or update ongoing production work.</p>
@@ -399,7 +399,7 @@ const Production = () => {
                                         <Edit size={18} style={{ marginRight: '8px' }} /> Update Production
                                     </button>
                                 )}
-                                {(job.status === 'Planned' || job.status === 'Pending') && userInfo?.role !== 'Operator' && (
+                                {(job.status === 'Planned' || job.status === 'Pending') && (!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
                                     <button 
                                         className="btn" 
                                         style={{ width: '100%', padding: '10px', fontSize: '1rem', marginTop: '10px', background: 'rgba(255,255,255,0.1)' }}
@@ -505,7 +505,7 @@ const Production = () => {
                                                     <button className="btn btn-accent" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => startJob(job._id)}>
                                                         <Play size={14} style={{ marginRight: '4px' }} /> Start
                                                     </button>
-                                                    {userInfo?.role !== 'Operator' && (
+                                                    {(!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
                                                         <button className="btn" style={{ padding: '0.25rem 0.5rem', color: 'var(--text-secondary)' }} onClick={() => openEditModal(job)} title="Edit Job">
                                                             <Edit size={16} />
                                                         </button>
