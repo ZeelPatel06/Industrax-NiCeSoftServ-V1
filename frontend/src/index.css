@@ -785,6 +785,19 @@ p {
   }
 }
 
+/* Grid Utilities */
+.grid-2-col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+.grid-3-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
 /* BOM Specific Layouts */
 .grid-top-layout {
   display: grid;
@@ -793,30 +806,14 @@ p {
 }
 
 .bom-mobile-selector {
-  display: flex !important;
-  overflow-x: auto !important;
-  white-space: nowrap;
-  gap: 1.2rem !important;
-  padding: 0.5rem 0.25rem 1.5rem !important;
-  scrollbar-width: thin;
-  scroll-snap-type: x mandatory;
-  grid-template-columns: none !important;
+  display: grid !important;
+  gap: 1.5rem !important;
 }
 
-.bom-mobile-selector::-webkit-scrollbar {
-  height: 6px;
-  background: transparent;
-}
+/* Removed webkit scrollbar styles for bom-mobile-selector as it is no longer horizontal */
 
-.bom-mobile-selector::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-
-.bom-mobile-selector>div {
-  flex: 0 0 280px !important;
-  scroll-snap-align: center;
-  margin-bottom: 0 !important;
+.bom-mobile-selector > div {
+  width: 100% !important;
 }
 
 /* Targeted BOM Mobile Selection Logic */
@@ -828,9 +825,8 @@ p {
     gap: 1.5rem !important;
   }
 
-  .bom-mobile-selector>div {
-    flex: 0 0 260px !important;
-    /* Slightly narrower on mobile */
+  .bom-mobile-selector > div {
+    width: 100% !important;
   }
 
   /* Summary Section - Mobile Horizontal Scroll */
