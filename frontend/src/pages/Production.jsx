@@ -305,6 +305,19 @@ const Production = () => {
         (job.orderId?.clientId?.name && job.orderId.clientId.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
+    const isRestrictedRole = ['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role);
+    const myActionableJobs = filteredJobs.filter(job => {
+        if (job.status === 'Completed') return false;
+        if (!isRestrictedRole) return true;
+        return (job.operatorId?._id || job.operatorId) === userInfo?._id;
+    });
+
+    const myCompletedJobs = filteredJobs.filter(job => {
+        if (job.status !== 'Completed') return false;
+        if (!isRestrictedRole) return true;
+        return (job.operatorId?._id || job.operatorId) === userInfo?._id;
+    });
+
     return (
         <div className="animate-fade-in">
             <div className="page-header">
@@ -336,13 +349,13 @@ const Production = () => {
             </div>
 
             <div className="glass-card table-container">
-                {(['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) ? (
+                {isRestrictedRole ? (
                     <div style={{ display: 'grid', gap: '20px' }}>
                         <h2 style={{ fontSize: '1.2rem', marginBottom: '5px' }}>Actionable Jobs</h2>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>Start or update ongoing production work.</p>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>Your assigned production tasks.</p>
                         
-                        {filteredJobs.filter(j => j.status !== 'Completed').length > 0 ? 
-                            filteredJobs.filter(j => j.status !== 'Completed').map(job => (
+                        {myActionableJobs.length > 0 ? 
+                            myActionableJobs.map(job => (
                                 <div key={job._id} style={{ 
                                     background: (job.status === 'Started' || job.status === 'In Progress') ? 'rgba(82, 196, 26, 0.08)' : 'rgba(255,255,255,0.05)', 
                                     padding: '20px', 
@@ -411,15 +424,15 @@ const Production = () => {
                             </div>
                         )) : (
                             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                                No active production jobs at the moment.
+                                No active production jobs assigned to you.
                             </div>
                         )}
 
-                        {filteredJobs.filter(j => j.status === 'Completed').length > 0 && (
+                        {myCompletedJobs.length > 0 && (
                             <div style={{ marginTop: '30px' }}>
                                 <h3 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>Recently Completed</h3>
                                 <div style={{ display: 'grid', gap: '10px' }}>
-                                    {filteredJobs.filter(j => j.status === 'Completed').slice(0, 5).map(job => (
+                                    {myCompletedJobs.slice(0, 5).map(job => (
                                         <div key={job._id} style={{ background: 'rgba(255,255,255,0.02)', padding: '12px 20px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <div>
                                                 <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{job.jobId}</span>

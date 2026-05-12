@@ -18,6 +18,12 @@ const createProductionJob = asyncHandler(async (req, res) => {
     let { jobId, orderId, productId, partId, plannedQty, endDate, priority, machineId, operatorId } = req.body;
 
     const ownerId = req.user.role === 'Owner' ? req.user.email : req.user.owner;
+    
+    // Restriction: Only Owner can create production jobs
+    if (req.user.role !== 'Owner') {
+        res.status(403);
+        throw new Error('Not authorized to create production jobs (Admin only)');
+    }
 
     // Sanitize and validate IDs to prevent BSON casting errors
     if (productId === "") productId = null;
@@ -238,6 +244,15 @@ const startProduction = asyncHandler(async (req, res) => {
 
     job.status = 'Started';
     job.startDate = Date.now();
+    
+    // Assign the current user if no operator is assigned
+    if (!job.operatorId) {
+        job.operatorId = req.user._id;
+    } else if (req.user.role !== 'Owner' && String(job.operatorId) !== String(req.user._id)) {
+        res.status(403);
+        throw new Error('This job is assigned to another operator');
+    }
+    
     await job.save();
 
     // If a machine is assigned, update its status and operator
@@ -272,6 +287,12 @@ const updateProduction = asyncHandler(async (req, res) => {
     if (!job) {
         res.status(404);
         throw new Error('Job not found for your company');
+    }
+
+    // Restriction: Only Owner or the assigned operator can update progress
+    if (req.user.role !== 'Owner' && job.operatorId && String(job.operatorId) !== String(req.user._id)) {
+        res.status(403);
+        throw new Error('You are not authorized to update this job (assigned to another employee)');
     }
     if (job.status !== 'Started' && job.status !== 'In Progress') {
         res.status(400);
@@ -316,6 +337,12 @@ const completeProduction = asyncHandler(async (req, res) => {
     if (!job) {
         res.status(404);
         throw new Error('Job not found for your company');
+    }
+
+    // Restriction: Only Owner or the assigned operator can complete the job
+    if (req.user.role !== 'Owner' && job.operatorId && String(job.operatorId) !== String(req.user._id)) {
+        res.status(403);
+        throw new Error('You are not authorized to complete this job (assigned to another employee)');
     }
     if (job.status !== 'Started' && job.status !== 'In Progress') {
         res.status(400);
@@ -478,6 +505,12 @@ const deleteProductionJob = asyncHandler(async (req, res) => {
         throw new Error('Job not found');
     }
 
+    // Restriction: Only Owner can delete production jobs
+    if (req.user.role !== 'Owner') {
+        res.status(403);
+        throw new Error('Not authorized to delete production jobs (Admin only)');
+    }
+
     if (job.status === 'Planned' || job.status === 'Started' || job.status === 'In Progress' || job.status === 'Pending') {
         const bomQuery = job.productId 
             ? { productId: job.productId, owner: ownerId, isDeleted: false }
@@ -598,6 +631,12 @@ const editProductionJob = asyncHandler(async (req, res) => {
     if (!job) {
         res.status(404);
         throw new Error('Job not found');
+    }
+
+    // Restriction: Only Owner can edit production job details
+    if (req.user.role !== 'Owner') {
+        res.status(403);
+        throw new Error('Not authorized to edit production job details (Admin only)');
     }
 
     if (job.status !== 'Planned' && job.status !== 'Pending') {
