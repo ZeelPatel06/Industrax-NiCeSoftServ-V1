@@ -80,6 +80,21 @@ const Attendance = () => {
         ? attendance.filter(a => a.userId?.name.toLowerCase().includes(searchTerm.toLowerCase()))
         : attendance;
 
+    // Helper to format check-in time with legacy support
+    const formatTime = (timeStr) => {
+        if (!timeStr) return '-';
+        // If it's already formatted (legacy "04:28 AM"), return as is
+        if (/^\d{2}:\d{2} [AP]M$/.test(timeStr)) return timeStr;
+        
+        try {
+            const date = new Date(timeStr);
+            if (isNaN(date.getTime())) return timeStr;
+            return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch (err) {
+            return timeStr;
+        }
+    };
+
     if (loading) return <div className="p-4">Loading attendance...</div>;
 
     return (
@@ -135,7 +150,7 @@ const Attendance = () => {
                         </div>
                         {todayRecord?.checkInTime && (
                             <p style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                <Clock size={12} style={{ marginRight: '4px' }} /> Checked in at {todayRecord.checkInTime}
+                                <Clock size={12} style={{ marginRight: '4px' }} /> Checked in at {formatTime(todayRecord.checkInTime)}
                             </p>
                         )}
                     </div>
@@ -190,7 +205,7 @@ const Attendance = () => {
                                     {rec.checkInTime ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <Clock size={14} className="text-primary" />
-                                            {rec.checkInTime}
+                                            {formatTime(rec.checkInTime)}
                                         </div>
                                     ) : '-'}
                                 </td>

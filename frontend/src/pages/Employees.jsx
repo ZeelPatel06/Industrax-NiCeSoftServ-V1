@@ -116,6 +116,21 @@ const Employees = () => {
         emp.role.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Helper to format check-in time with legacy support
+    const formatTime = (timeStr) => {
+        if (!timeStr) return '-';
+        // If it's already formatted (legacy "04:28 AM"), return as is
+        if (/^\d{2}:\d{2} [AP]M$/.test(timeStr)) return timeStr;
+        
+        try {
+            const date = new Date(timeStr);
+            if (isNaN(date.getTime())) return timeStr;
+            return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch (err) {
+            return timeStr;
+        }
+    };
+
     if (loading) return <div style={{ padding: '20px' }}>Loading...</div>;
 
     return (
@@ -209,7 +224,7 @@ const Employees = () => {
                                                 </span>
                                                 {todayRecord.checkInTime && (
                                                     <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                        <Clock size={10} /> {todayRecord.checkInTime}
+                                                        <Clock size={10} /> {formatTime(todayRecord.checkInTime)}
                                                     </div>
                                                 )}
                                             </>

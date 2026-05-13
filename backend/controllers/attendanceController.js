@@ -50,9 +50,8 @@ export const markAttendance = asyncHandler(async (req, res) => {
 
     const updateData = { status };
     if (status === 'Present') {
-        // Generate current check-in time (e.g., 10:45 AM)
-        const now = new Date();
-        updateData.checkInTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        // Store full ISO string for accurate timezone conversion on frontend
+        updateData.checkInTime = new Date().toISOString();
     }
     
     // Upsert attendance for the day
