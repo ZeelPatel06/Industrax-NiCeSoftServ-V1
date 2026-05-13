@@ -87,12 +87,77 @@ const Sidebar = ({ isOpen, onClose }) => {
                 ))}
             </nav>
 
-            <div style={{ marginTop: 'auto' }}>
+            <div style={{ marginTop: 'auto', padding: '1rem' }}>
+                {/* User Profile Card */}
+                <div style={{ 
+                    background: 'rgba(255,255,255,0.03)', 
+                    borderRadius: '12px', 
+                    padding: collapsed ? '8px' : '10px',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    marginBottom: '1rem',
+                    transition: 'all 0.2s'
+                }}>
+                    <div style={{ 
+                        width: '32px', 
+                        height: '32px', 
+                        borderRadius: '8px', 
+                        background: 'linear-gradient(135deg, var(--primary-color) 0%, #4f46e5 100%)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        color: 'white',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)'
+                    }}>
+                        {userInfo?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    {!collapsed && (
+                        <div style={{ overflow: 'hidden', textAlign: 'left' }}>
+                            <div style={{ 
+                                margin: 0, 
+                                fontSize: '0.85rem', 
+                                fontWeight: 600, 
+                                color: 'white', 
+                                whiteSpace: 'nowrap', 
+                                textOverflow: 'ellipsis', 
+                                overflow: 'hidden' 
+                            }}>
+                                {userInfo?.name || 'User Account'}
+                            </div>
+                            <div style={{ 
+                                margin: 0, 
+                                fontSize: '0.65rem', 
+                                color: 'var(--text-secondary)', 
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                fontWeight: 600
+                            }}>
+                                {userInfo?.role}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 <button
                     onClick={logoutHandler}
                     className="btn"
                     title={collapsed ? 'Logout' : ''}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: collapsed ? '0.75rem' : '0.75rem 1rem' }}
+                    style={{ 
+                        width: '100%', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: collapsed ? 'center' : 'flex-start', 
+                        color: 'var(--text-secondary)', 
+                        background: 'rgba(255,255,255,0.05)', 
+                        padding: collapsed ? '0.75rem' : '0.75rem 1rem',
+                        borderRadius: '8px'
+                    }}
                 >
                     <LogOut size={20} style={iconStyle} />
                     {!collapsed && <span style={{ marginLeft: '12px' }}>Logout</span>}
