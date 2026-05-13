@@ -639,9 +639,9 @@ const editProductionJob = asyncHandler(async (req, res) => {
         throw new Error('Not authorized to edit production job details (Admin only)');
     }
 
-    if (job.status !== 'Planned' && job.status !== 'Pending') {
+    if (job.status === 'Completed') {
         res.status(400);
-        throw new Error('Cannot edit a job that is already started or completed');
+        throw new Error('Cannot edit a job that is already completed');
     }
 
     // Sanitize
