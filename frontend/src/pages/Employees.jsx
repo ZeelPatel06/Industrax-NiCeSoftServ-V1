@@ -90,16 +90,17 @@ const Employees = () => {
         }
     };
 
-    const markAttendance = async (userId, status) => {
+    const markAttendance = async (userId, status, checkOut = false) => {
         try {
             await attendanceService.mark({
                 userId,
                 date: currentDate,
-                status
+                status,
+                checkOut
             });
             fetchData();
         } catch (error) {
-            setError('Failed to mark attendance');
+            setError(error.response?.data?.message || 'Failed to mark attendance');
         }
     };
 
@@ -149,16 +150,17 @@ const Employees = () => {
                         />
                         <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                     </div>
-                    <button className="btn btn-primary" onClick={() => { setEditingEmployee(null); setFormData({ name: '', phoneNumber: '', role: 'Worker', dailyWage: '', email: '', password: '' }); setShowModal(true); }}>
-                        <Plus size={18} style={{ marginRight: '8px' }} /> Add Employee
-                    </button>
-                    <input 
-                        type="date" 
-                        value={currentDate} 
-                        onChange={(e) => setCurrentDate(e.target.value)} 
-                        className="form-control" 
-                        style={{ width: 'auto' }} 
-                    />
+                    <div className="header-actions-group">
+                        <button className="btn btn-primary" onClick={() => { setEditingEmployee(null); setFormData({ name: '', phoneNumber: '', role: 'Worker', dailyWage: '', email: '', password: '' }); setShowModal(true); }}>
+                            <Plus size={18} style={{ marginRight: '8px' }} /> Add Staff
+                        </button>
+                        <input 
+                            type="date" 
+                            value={currentDate} 
+                            onChange={(e) => setCurrentDate(e.target.value)} 
+                            className="form-control" 
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -224,7 +226,12 @@ const Employees = () => {
                                                 </span>
                                                 {todayRecord.checkInTime && (
                                                     <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                        <Clock size={10} /> {formatTime(todayRecord.checkInTime)}
+                                                        <Clock size={10} className="text-primary" /> Arr: {formatTime(todayRecord.checkInTime)}
+                                                    </div>
+                                                )}
+                                                {todayRecord.checkOutTime && (
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                        <Clock size={10} className="text-warning" /> Lve: {formatTime(todayRecord.checkOutTime)}
                                                     </div>
                                                 )}
                                             </>
@@ -234,22 +241,37 @@ const Employees = () => {
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                            <button 
-                                                className="btn" 
-                                                style={{ padding: '6px', background: todayRecord?.status === 'Present' ? 'var(--success-color)' : 'rgba(16, 185, 129, 0.1)', color: todayRecord?.status === 'Present' ? 'white' : 'var(--success-color)' }}
-                                                onClick={() => markAttendance(emp._id, 'Present')}
-                                                title="Mark Present"
-                                            >
-                                                <Check size={18} />
-                                            </button>
-                                            <button 
-                                                className="btn" 
-                                                style={{ padding: '6px', background: todayRecord?.status === 'Absent' ? 'var(--danger-color)' : 'rgba(239, 68, 68, 0.1)', color: todayRecord?.status === 'Absent' ? 'white' : 'var(--danger-color)' }}
-                                                onClick={() => markAttendance(emp._id, 'Absent')}
-                                                title="Mark Absent"
-                                            >
-                                                <XCircle size={18} />
-                                            </button>
+                                            {!todayRecord ? (
+                                                <>
+                                                    <button 
+                                                        className="btn" 
+                                                        style={{ padding: '6px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}
+                                                        onClick={() => markAttendance(emp._id, 'Present')}
+                                                        title="Check In"
+                                                    >
+                                                        <Check size={18} />
+                                                    </button>
+                                                    <button 
+                                                        className="btn" 
+                                                        style={{ padding: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}
+                                                        onClick={() => markAttendance(emp._id, 'Absent')}
+                                                        title="Mark Absent"
+                                                    >
+                                                        <XCircle size={18} />
+                                                    </button>
+                                                </>
+                                            ) : todayRecord.status === 'Present' && !todayRecord.checkOutTime ? (
+                                                <button 
+                                                    className="btn" 
+                                                    style={{ padding: '6px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning-color)' }}
+                                                    onClick={() => markAttendance(emp._id, 'Present', true)}
+                                                    title="Check Out"
+                                                >
+                                                    <Clock size={18} />
+                                                </button>
+                                            ) : (
+                                                <div style={{ width: '40px' }}></div> // Placeholder to keep spacing
+                                            )}
                                             <button 
                                                 className="btn" 
                                                 style={{ padding: '6px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary-color)' }}

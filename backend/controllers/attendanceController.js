@@ -48,6 +48,20 @@ export const markAttendance = asyncHandler(async (req, res) => {
     const startOfDay = new Date(date || new Date());
     startOfDay.setUTCHours(0,0,0,0);
 
+    // If check-out is requested
+    if (req.body.checkOut) {
+        const attendance = await Attendance.findOneAndUpdate(
+            { userId, date: startOfDay, owner: ownerId, status: 'Present' },
+            { checkOutTime: new Date().toISOString() },
+            { new: true }
+        );
+        if (!attendance) {
+            res.status(400);
+            throw new Error('No active check-in found for today to check out from.');
+        }
+        return res.json(attendance);
+    }
+
     const updateData = { status };
     if (status === 'Present') {
         // Store full ISO string for accurate timezone conversion on frontend

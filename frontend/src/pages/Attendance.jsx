@@ -51,15 +51,15 @@ const Attendance = () => {
         }
     };
 
-    const handleMarkAbsent = async () => {
+    const handleCheckOut = async () => {
         try {
             await attendanceService.mark({
-                status: 'Absent',
+                checkOut: true,
                 date: new Date().toISOString().split('T')[0]
             });
             fetchData();
         } catch (err) {
-            setError('Failed to mark absent');
+            setError(err.response?.data?.message || 'Check-out failed');
         }
     };
 
@@ -135,23 +135,41 @@ const Attendance = () => {
                         <div style={{ background: 'rgba(99, 102, 241, 0.1)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                             <CheckCircle size={30} className="text-primary" />
                         </div>
-                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Today's Status</h3>
+                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Shift Control</h3>
                         <div style={{ marginTop: '1rem' }}>
-                            {todayRecord ? (
-                                <span className={`badge ${todayRecord.status === 'Present' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '1.1rem', padding: '8px 20px' }}>
-                                    {todayRecord.status}
-                                </span>
+                            {!todayRecord ? (
+                                <button 
+                                    className="btn btn-primary" 
+                                    style={{ width: '100%', padding: '12px', background: 'linear-gradient(to right, #6366f1, #4f46e5)', border: 'none', boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }} 
+                                    onClick={handleCheckIn}
+                                >
+                                    <Clock size={18} style={{ marginRight: '8px' }} /> Check In Now
+                                </button>
+                            ) : todayRecord.status === 'Present' && !todayRecord.checkOutTime ? (
+                                <button 
+                                    className="btn" 
+                                    style={{ width: '100%', padding: '12px', background: 'linear-gradient(to right, #f59e0b, #d97706)', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)' }} 
+                                    onClick={handleCheckOut}
+                                >
+                                    <ArrowRight size={18} style={{ marginRight: '8px' }} /> Check Out / Leave
+                                </button>
                             ) : (
-                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                                    <button className="btn btn-primary" onClick={handleCheckIn}>Mark Present</button>
-                                    <button className="btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }} onClick={handleMarkAbsent}>Absent</button>
+                                <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)', padding: '10px', borderRadius: '12px', fontWeight: 600 }}>
+                                    Shift Completed Today
                                 </div>
                             )}
                         </div>
                         {todayRecord?.checkInTime && (
-                            <p style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                <Clock size={12} style={{ marginRight: '4px' }} /> Checked in at {formatTime(todayRecord.checkInTime)}
-                            </p>
+                            <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                    <Clock size={12} className="text-primary" /> Arrival: {formatTime(todayRecord.checkInTime)}
+                                </span>
+                                {todayRecord.checkOutTime && (
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                        <ArrowRight size={12} className="text-warning" /> Leaving: {formatTime(todayRecord.checkOutTime)}
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
 
@@ -183,7 +201,8 @@ const Attendance = () => {
                             {isOwner && <th>Employee</th>}
                             <th>Date</th>
                             <th>Status</th>
-                            <th>Arrival Time</th>
+                            <th>Arrival</th>
+                            <th>Leaving</th>
                             {!isOwner && <th>Amount Earned</th>}
                         </tr>
                     </thead>
@@ -206,6 +225,14 @@ const Attendance = () => {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <Clock size={14} className="text-primary" />
                                             {formatTime(rec.checkInTime)}
+                                        </div>
+                                    ) : '-'}
+                                </td>
+                                <td>
+                                    {rec.checkOutTime ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                            <ArrowRight size={14} className="text-warning" />
+                                            {formatTime(rec.checkOutTime)}
                                         </div>
                                     ) : '-'}
                                 </td>
