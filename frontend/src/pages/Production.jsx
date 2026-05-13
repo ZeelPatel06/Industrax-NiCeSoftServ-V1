@@ -404,13 +404,25 @@ const Production = () => {
                                     </button>
                                 )}
                                 {(job.status === 'Started' || job.status === 'In Progress') && (
-                                    <button 
-                                        className="btn btn-primary" 
-                                        style={{ width: '100%', padding: '15px', fontSize: '1.1rem', fontWeight: 'bold' }}
-                                        onClick={() => setUpdateModal({ show: true, jobId: job._id, currentJob: job, qty: 0 })}
-                                    >
-                                        <Edit size={18} style={{ marginRight: '8px' }} /> Update Production
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                        <button 
+                                            className="btn btn-primary" 
+                                            style={{ flex: 2, padding: '15px', fontSize: '1.1rem', fontWeight: 'bold' }}
+                                            onClick={() => setUpdateModal({ show: true, jobId: job._id, currentJob: job, qty: 0 })}
+                                        >
+                                            <Edit size={18} style={{ marginRight: '8px' }} /> Update Qty
+                                        </button>
+                                        {(!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
+                                            <button 
+                                                className="btn" 
+                                                style={{ flex: 1, padding: '15px', background: 'rgba(255,255,255,0.05)', color: 'white' }}
+                                                onClick={() => openEditModal(job)}
+                                                title="Edit Job Details"
+                                            >
+                                                <Settings size={18} />
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                                 {(job.status === 'Planned' || job.status === 'Pending') && (!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
                                     <button 
@@ -526,9 +538,16 @@ const Production = () => {
                                                 </>
                                             )}
                                             {(job.status === 'Started' || job.status === 'In Progress') && (
-                                                <button className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => setUpdateModal({ show: true, jobId: job._id, currentJob: job, qty: 0 })}>
-                                                    <Edit size={14} style={{ marginRight: '4px' }} /> Update
-                                                </button>
+                                                <>
+                                                    <button className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => setUpdateModal({ show: true, jobId: job._id, currentJob: job, qty: 0 })}>
+                                                        <Edit size={14} style={{ marginRight: '4px' }} /> Update
+                                                    </button>
+                                                    {(!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
+                                                        <button className="btn" style={{ padding: '0.25rem 0.5rem', color: 'var(--text-secondary)' }} onClick={() => openEditModal(job)} title="Edit Job Details">
+                                                            <Edit size={16} />
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                             {job.status === 'Completed' && (
                                                 <span style={{ color: 'var(--success-color)', display: 'flex', alignItems: 'center', fontSize: '0.85rem' }}><CheckCircle size={16} style={{ marginRight: '4px' }} /> Done</span>
