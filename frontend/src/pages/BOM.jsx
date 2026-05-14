@@ -166,6 +166,25 @@ const BOM = () => {
         }
     };
 
+    const handleSyncRateToMaster = async () => {
+        if (!selectedEntity || activeTab !== 'JobWork') return;
+        if (!selectedEntity.outputProduct && !selectedEntity.outputPart) {
+            alert('No output product or part linked to this job work order.');
+            return;
+        }
+
+        setIsSyncing(true);
+        try {
+            const res = await jobWorkService.syncCatalog(selectedEntity._id);
+            alert(res.message);
+            await fetchInitialData();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to sync rate to master catalog');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     const syncCostToMaster = async () => {
         if (!selectedEntity) return;
         setIsSyncing(true);
@@ -192,18 +211,19 @@ const BOM = () => {
                     ...selectedEntity,
                     standardCost: totalCost 
                 });
+            } else if (activeTab === 'JobWork') {
+                // Sync calculated BOM cost to the linked catalog item's standardCost
+                if (selectedEntity.outputProduct) {
+                    await productService.update(selectedEntity.outputProduct._id, { standardCost: totalCost });
+                } else if (selectedEntity.outputPart) {
+                    await partService.update(selectedEntity.outputPart._id, { standardCost: totalCost });
+                } else {
+                    throw new Error('No catalog link found to sync cost.');
+                }
             }
             
-            // Refresh local state to show updated price
-            const freshData = await fetchInitialData();
-            
-            // Re-sync the selected entity with fresh data to update the UI immediately
-            if (freshData) {
-                const updated = (activeTab === 'Standard' ? freshData.prods : freshData.prts).find(i => i._id === selectedEntity._id);
-                if (updated) setSelectedEntity(updated);
-            }
-            
-            alert('Standard cost updated successfully in Master catalog!');
+            alert('Cost synchronized with master catalog successfully!');
+            await fetchInitialData();
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Failed to sync cost to master';
             setError(msg);
@@ -449,7 +469,7 @@ const BOM = () => {
                                         {isSyncing ? (
                                             <RefreshCw size={16} className="animate-spin" />
                                         ) : (
-                                            <><RefreshCw size={16} style={{ marginRight: '8px' }} /> Sync to Master catalog</>
+                                            <><RefreshCw size={16} style={{ marginRight: '8px' }} /> Sync Cost to Master</>
                                         )}
                                     </button>
 
@@ -465,6 +485,48 @@ const BOM = () => {
                                         disabled={bomItems.length === 0}
                                     >
                                         <Play size={16} style={{ marginRight: '8px' }} /> Start Production Build
+                                    </button>
+                                </div>
+                            )}
+
+                            {activeTab === 'JobWork' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+                                    <button 
+                                        className="btn btn-primary" 
+                                        style={{ 
+                                            width: '100%', 
+                                            background: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)', 
+                                            color: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'white' : 'var(--text-secondary)',
+                                            border: '1px solid ' + ((selectedEntity.outputProduct || selectedEntity.outputPart) ? 'transparent' : 'rgba(255,255,255,0.1)'),
+                                            cursor: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'pointer' : 'not-allowed'
+                                        }}
+                                        onClick={() => (selectedEntity.outputProduct || selectedEntity.outputPart) && handleSyncRateToMaster()}
+                                        disabled={isSyncing}
+                                    >
+                                        {isSyncing ? (
+                                            <RefreshCw size={16} className="animate-spin" />
+                                        ) : (
+                                            <><RefreshCw size={16} style={{ marginRight: '8px' }} /> {(selectedEntity.outputProduct || selectedEntity.outputPart) ? 'Sync Rate to Master' : 'Link to Catalog First'}</>
+                                        )}
+                                    </button>
+
+                                    <button 
+                                        className="btn btn-primary" 
+                                        style={{ 
+                                            width: '100%', 
+                                            background: 'rgba(79, 70, 229, 0.1)', 
+                                            color: 'var(--primary-color)', 
+                                            border: '1px solid var(--primary-color)',
+                                            display: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'flex' : 'none'
+                                        }}
+                                        onClick={syncCostToMaster}
+                                        disabled={isSyncing || bomItems.length === 0}
+                                    >
+                                        {isSyncing ? (
+                                            <RefreshCw size={16} className="animate-spin" />
+                                        ) : (
+                                            <><RefreshCw size={16} style={{ marginRight: '8px' }} /> Sync BOM Cost to Catalog</>
+                                        )}
                                     </button>
                                 </div>
                             )}

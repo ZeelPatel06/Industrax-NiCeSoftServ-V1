@@ -100,3 +100,40 @@ export const deleteOrder = asyncHandler(async (req, res) => {
         throw new Error('Order not found or unauthorized');
     }
 });
+
+// Sync JWO rate and qty to master catalog (Product/Part)
+export const syncToCatalog = asyncHandler(async (req, res) => {
+    const ownerId = req.user.role === 'Owner' ? req.user.email : req.user.owner;
+    const order = await JobWorkOrder.findById(req.params.id)
+        .populate('outputProduct')
+        .populate('outputPart');
+
+    if (!order || order.owner !== ownerId) {
+        res.status(404);
+        throw new Error('Job Work Order not found');
+    }
+
+    if (!order.outputProduct && !order.outputPart) {
+        res.status(400);
+        throw new Error('No output product or part linked to this order for synchronization');
+    }
+
+    const rate = order.rate || 0;
+    const qty = order.materialQuantity || 0;
+
+    if (order.outputProduct) {
+        const Product = (await import('../models/Product.js')).default;
+        await Product.findByIdAndUpdate(order.outputProduct._id, {
+            sellingPrice: rate
+        });
+    }
+
+    if (order.outputPart) {
+        const Part = (await import('../models/Part.js')).default;
+        await Part.findByIdAndUpdate(order.outputPart._id, {
+            sellingPrice: rate
+        });
+    }
+
+    res.json({ message: 'Master catalog synchronized successfully with JWO rate.' });
+});

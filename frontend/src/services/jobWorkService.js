@@ -16,6 +16,10 @@ const jobWorkService = {
     delete: async (id) => {
         const { data } = await apiClient.delete(`/job-work/${id}`);
         return data;
+    },
+    syncCatalog: async (id) => {
+        const { data } = await apiClient.post(`/job-work/${id}/sync`);
+        return data;
     }
 };
 

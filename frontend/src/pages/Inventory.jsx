@@ -234,8 +234,9 @@ const Inventory = () => {
                                 <thead>
                                     <tr>
                                         <th>Part</th>
-                                        <th>Category</th>
-                                        <th style={{ textAlign: 'right' }}>Current Stock</th>
+                                        <th style={{ textAlign: 'right' }}>Physical Stock</th>
+                                        <th style={{ textAlign: 'right' }}>Reserved</th>
+                                        <th style={{ textAlign: 'right' }}>Available</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
@@ -246,23 +247,26 @@ const Inventory = () => {
                                                 <div style={{ fontWeight: 500 }}>{part.name}</div>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{part.partCode}</div>
                                             </td>
-                                            <td style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                                {part.category}
+                                            <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                                                {(part.currentStock || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {part.unit}
                                             </td>
-                                            <td style={{ textAlign: 'right', fontWeight: 700, color: (part.currentStock || 0) <= 0 ? 'var(--warning-color)' : 'var(--primary-color)' }}>
-                                                {Number(part.currentStock || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {part.unit}
+                                            <td style={{ textAlign: 'right', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                                {(part.reservedStock || 0) > 0 ? `(${(part.reservedStock || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })})` : '-'}
+                                            </td>
+                                            <td style={{ textAlign: 'right', fontWeight: 700, color: ((part.currentStock || 0) - (part.reservedStock || 0)) <= (part.minimumLevel || 0) ? 'var(--warning-color)' : 'var(--primary-color)' }}>
+                                                {Number((part.currentStock || 0) - (part.reservedStock || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {part.unit}
                                             </td>
                                             <td>
-                                                {(part.currentStock || 0) <= 0 ? (
-                                                    <span className="badge badge-danger">Out of stock</span>
+                                                {((part.currentStock || 0) - (part.reservedStock || 0)) <= (part.minimumLevel || 0) ? (
+                                                    <span className="badge badge-danger">Low stock</span>
                                                 ) : (
-                                                    <span className="badge badge-success">In stock</span>
+                                                    <span className="badge badge-success">Sufficient</span>
                                                 )}
                                             </td>
                                         </tr>
                                     ))}
                                     {filteredParts.length === 0 && (
-                                        <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>{searchTerm ? 'No matching parts.' : 'No finished parts in stock.'}</td></tr>
+                                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>{searchTerm ? 'No matching parts.' : 'No finished parts in stock.'}</td></tr>
                                     )}
                                 </tbody>
                             </table>

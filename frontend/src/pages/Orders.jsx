@@ -8,7 +8,7 @@ import invoiceService from '../services/invoiceService';
 import materialService from '../services/materialService';
 import partService from '../services/partService';
 import bomService from '../services/bomService';
-import { ShoppingCart, Edit, Plus, Trash2, Search, Package, User, IndianRupee, Calendar, FileText, ChevronRight, X, Clock, CheckCircle2, Edit2, Briefcase, Download } from 'lucide-react';
+import { ShoppingCart, Edit, Plus, Trash2, Search, Package, User, IndianRupee, Calendar, FileText, ChevronRight, X, Clock, CheckCircle2, Edit2, Briefcase, Download, RefreshCw } from 'lucide-react';
 
 const Orders = () => {
     // Shared State
@@ -61,7 +61,9 @@ const Orders = () => {
         materials: [],
         materialName: '',
         materialQuantity: 1,
-        unit: 'pcs'
+        unit: 'pcs',
+        outputProduct: '',
+        outputPart: ''
     });
 
     const [allBoms, setAllBoms] = useState([]);
@@ -222,7 +224,9 @@ const Orders = () => {
                 jobType: jobFormData.jobType,
                 totalAmount: Number(jobFormData.totalAmount),
                 isClientMaterial: jobFormData.isClientMaterial,
-                deadline: jobFormData.deadline || undefined
+                deadline: jobFormData.deadline || undefined,
+                outputProduct: jobFormData.outputProduct || undefined,
+                outputPart: jobFormData.outputPart || undefined
             };
 
             if (jobEditMode) {
@@ -235,6 +239,16 @@ const Orders = () => {
             fetchData();
         } catch (error) {
             setError(error.response?.data?.message || "Failed to save job order");
+        }
+    };
+
+    const handleSyncToCatalog = async (id) => {
+        try {
+            const res = await jobWorkService.syncCatalog(id);
+            alert(res.message);
+            fetchData();
+        } catch (error) {
+            setError(error.response?.data?.message || 'Failed to sync with master catalog');
         }
     };
 
@@ -282,6 +296,8 @@ const Orders = () => {
             totalAmount: order.totalAmount || '',
             isClientMaterial: order.isClientMaterial,
             deadline: order.deadline ? new Date(order.deadline).toISOString().split('T')[0] : '',
+            outputProduct: order.outputProduct?._id || order.outputProduct || '',
+            outputPart: order.outputPart?._id || order.outputPart || '',
         });
         setCurrentMaterial({ materialName: '', quantity: 1, unit: 'pcs' });
         setShowJobModal(true);
@@ -418,7 +434,7 @@ const Orders = () => {
                                 setShowStandardModal(true);
                             } else {
                                 setJobEditMode(false);
-                                setJobFormData({ clientId: '', clientName: '', orderTitle: '', materials: [], materialName: '', materialQuantity: '', unit: 'pcs', jobType: '', totalAmount: '', isClientMaterial: true, deadline: '' });
+                                setJobFormData({ clientId: '', clientName: '', orderTitle: '', materials: [], materialName: '', materialQuantity: '', unit: 'pcs', jobType: '', totalAmount: '', isClientMaterial: true, deadline: '', outputProduct: '', outputPart: '' });
                                 setCurrentMaterial({ materialName: '', quantity: 1, unit: 'pcs' });
                                 setShowJobModal(true);
                             }
@@ -559,7 +575,7 @@ const Orders = () => {
                                             {order.deadline ? new Date(order.deadline).toLocaleDateString() : 'No Deadline'}
                                         </div>
                                     </td>
-                                    <td style={{ fontWeight: 700, color: 'var(--accent-color)' }}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                                    <td style={{ fontWeight: 700, color: 'var(--accent-color)' }}>₹{(order.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
                                     <td>
                                         <span className={`badge ${order.status === 'Completed' ? 'badge-success' : 'badge-warning'}`}>
                                             {order.status === 'Pending' ? <Clock size={12} style={{ marginRight: '5px' }} /> : <CheckCircle2 size={12} style={{ marginRight: '5px' }} />}
@@ -567,7 +583,23 @@ const Orders = () => {
                                         </span>
                                     </td>
                                     <td>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <button 
+                                                className="btn" 
+                                                style={{ 
+                                                    padding: '6px 12px', 
+                                                    fontSize: '0.8rem', 
+                                                    background: (order.outputProduct || order.outputPart) ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)',
+                                                    color: (order.outputProduct || order.outputPart) ? 'white' : 'var(--text-secondary)',
+                                                    cursor: (order.outputProduct || order.outputPart) ? 'pointer' : 'not-allowed',
+                                                    border: '1px solid ' + ((order.outputProduct || order.outputPart) ? 'transparent' : 'rgba(255,255,255,0.1)')
+                                                }} 
+                                                onClick={() => (order.outputProduct || order.outputPart) && handleSyncToCatalog(order._id)}
+                                                title={(order.outputProduct || order.outputPart) ? 'Sync rate to master catalog' : 'Link to a product/part first to sync'}
+                                            >
+                                                <RefreshCw size={14} style={{ marginRight: '5px' }} className={(order.outputProduct || order.outputPart) ? '' : 'opacity-50'} /> 
+                                                {(order.outputProduct || order.outputPart) ? 'Sync to Master' : 'Link Required'}
+                                            </button>
                                             <button className="btn btn-accent" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => openInvoiceModal(order)}>
                                                 <FileText size={14} style={{ marginRight: '5px' }} /> Invoice
                                             </button>
@@ -812,6 +844,42 @@ const Orders = () => {
                                 )}
                             </div>
                             )}
+
+                            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--primary-color)' }}>Catalog Integration (Output)</h4>
+                                <div className="form-group">
+                                    <label className="form-label">Link to Master Catalog (to sync price/qty later)</label>
+                                    <select 
+                                        className="form-control"
+                                        value={jobFormData.outputProduct ? `product:${jobFormData.outputProduct}` : jobFormData.outputPart ? `part:${jobFormData.outputPart}` : ''}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (!val) {
+                                                setJobFormData({ ...jobFormData, outputProduct: '', outputPart: '' });
+                                                return;
+                                            }
+                                            const [type, id] = val.split(':');
+                                            setJobFormData({ 
+                                                ...jobFormData, 
+                                                outputProduct: type === 'product' ? id : '', 
+                                                outputPart: type === 'part' ? id : '' 
+                                            });
+                                        }}
+                                    >
+                                        <option value="">-- No Catalog Link --</option>
+                                        <optgroup label="Products">
+                                            {products.map(p => <option key={p._id} value={`product:${p._id}`}>{p.name} ({p.productCode})</option>)}
+                                        </optgroup>
+                                        <optgroup label="Finished Parts">
+                                            {masterParts.map(p => <option key={p._id} value={`part:${p._id}`}>{p.name} ({p.partCode})</option>)}
+                                        </optgroup>
+                                    </select>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                                        Link this job to an existing Product or Part to enable "Sync to Master Catalog" functionality.
+                                    </p>
+                                </div>
+                            </div>
+
                             <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                 <div className="form-group">
                                     <label className="form-label">Job Process</label>
