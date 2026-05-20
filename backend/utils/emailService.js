@@ -7,15 +7,19 @@ export const sendOTPEmail = async (email, otp) => {
     try {
         const transporter = nodemailer.createTransport({
             host: "smtp.gmail.com",
-            port: 587,
-            secure: false,
-            requireTLS: true,
+            port: 465,
+            secure: true,
+
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS,
             },
-        });
 
+            connectionTimeout: 30000,
+            greetingTimeout: 30000,
+            socketTimeout: 30000,
+        });
+        
         await transporter.verify();
 
         console.log("SMTP Connected");
