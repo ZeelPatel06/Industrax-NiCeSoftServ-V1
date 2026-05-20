@@ -1,59 +1,35 @@
-import nodemailer from 'nodemailer';
-import { google } from 'googleapis';
-
-const OAuth2 = google.auth.OAuth2;
+import nodemailer from "nodemailer";
 
 export const sendOTPEmail = async (email, otp) => {
     try {
-        const oauth2Client = new OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET,
-            "https://developers.google.com/oauthplayground"
-        );
-
-        oauth2Client.setCredentials({
-            refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-        });
-
-        const accessToken = await new Promise((resolve, reject) => {
-            oauth2Client.getAccessToken((err, token) => {
-                if (err) {
-                    console.error("OAuth2 Dynamic Token Generation Failed:", err.message);
-                    if (process.env.ACCESS_TOKEN) {
-                        console.log("Using fallback ACCESS_TOKEN from .env");
-                        resolve(process.env.ACCESS_TOKEN);
-                    } else {
-                        reject("Failed to create access token: " + err.message);
-                    }
-                } else {
-                    resolve(token);
-                }
-            });
-        });
-
         const transporter = nodemailer.createTransport({
-            service: "gmail",
+            host: "smtp.gmail.com",
+            port: 587,
+            secure: false,
+            requireTLS: true,
             auth: {
-                type: "OAuth2",
                 user: process.env.EMAIL_USER,
-                accessToken,
-                clientId: process.env.GOOGLE_CLIENT_ID,
-                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+                pass: process.env.EMAIL_PASS,
             },
         });
 
-        const mailOptions = {
-            subject: "Your Verification OTP",
-            text: `Your OTP for registration is: ${otp}. It is valid for 10 minutes.`,
-            to: email,
-            from: process.env.EMAIL_USER,
-        };
+        await transporter.verify();
+
+        console.log("SMTP Connected");
+
+        const mailOptions = { from: `"Industrax" <${process.env.EMAIL_USER}>`, 
+        to: email, 
+        subject: "Verify Your Email - Industrax", 
+        html: ` <div style="font-family: Arial, sans-serif; background-color: #f4f7fa; padding: 40px 20px;"> <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);"> <div style="background: #111827; padding: 25px; text-align: center;"> <h1 style="color: #ffffff; margin: 0;">Industrax</h1> <p style="color: #9ca3af; margin-top: 8px;"> Industrial Solutions Simplified </p> </div> <div style="padding: 40px 30px;"> <h2 style="color: #111827; margin-bottom: 20px;"> Verify Your Email </h2> <p style="font-size: 16px; color: #4b5563; line-height: 1.6;"> Welcome to <strong>Industrax</strong>. Use the verification code below to complete your registration. </p> <div style="text-align: center; margin: 35px 0;"> <div style=" display: inline-block; background: #111827; color: #ffffff; font-size: 32px; letter-spacing: 8px; padding: 18px 35px; border-radius: 10px; font-weight: bold; "> ${otp} </div> </div> <p style="font-size: 15px; color: #6b7280; line-height: 1.6;"> This OTP is valid for <strong>10 minutes</strong>. Do not share this code with anyone. </p> <p style="font-size: 15px; color: #6b7280; line-height: 1.6;"> If you did not request this email, you can safely ignore it. </p> </div> <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;"> <p style="margin: 0; color: #9ca3af; font-size: 14px;"> © 2026 Industrax. All rights reserved. </p> </div> </div> </div> `, };
 
         const result = await transporter.sendMail(mailOptions);
+
+        console.log("Email sent:", result.response);
+
         return result;
+
     } catch (error) {
-        console.error("Error sending OTP email:", error);
-        throw new Error("Could not send OTP email. Please check your email credentials.");
+        console.error("EMAIL ERROR:", error);
+        throw error;
     }
 };
