@@ -1,26 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import bomService from '../services/bomService';
-import productService from '../services/productService';
-import materialService from '../services/materialService';
-import partService from '../services/partService';
-import { Package, Plus, Trash2, Edit2, Search, Calculator, FileText, ChevronRight, X, ArrowLeft, ListTree, RefreshCw, Play } from 'lucide-react';
-import ErrorMessage from '../components/ErrorMessage';
-import Loading from './Loading';
+import jobWorkService from '../../services/jobWorkService';
 
-const BOM = () => {
+const productService = { getAll: jobWorkService.getProducts, update: jobWorkService.updateProduct };
+const materialService = { getAll: jobWorkService.getMaterials };
+const partService = { getAll: jobWorkService.getParts, update: jobWorkService.updatePart };
+const bomService = { 
+    getByProduct: async (id) => jobWorkService.getBOMItems({ parentPartId: id, productId: id, jobWorkOrderId: id }), 
+    addItem: jobWorkService.addBOMItem, 
+    updateItem: jobWorkService.updateBOMItem, 
+    deleteItem: jobWorkService.deleteBOMItem 
+};
+
+import { Package, Plus, Trash2, Edit2, Search, Calculator, FileText, ChevronRight, X, ArrowLeft, Briefcase, ListTree, RefreshCw, Play } from 'lucide-react';
+import ErrorMessage from '../../components/ErrorMessage';
+import Loading from '../Loading';
+
+const JobWorkBOM = () => {
     const navigate = useNavigate();
     const [products, setProducts] = useState([]);
+    const [jobWorkOrders, setJobWorkOrders] = useState([]);
     const [materials, setMaterials] = useState([]);
     const [parts, setParts] = useState([]);
-    const [selectedEntity, setSelectedEntity] = useState(null); // Can be Product or Part
+    const [selectedEntity, setSelectedEntity] = useState(null); // Can be Product or JobWorkOrder
     const [bomItems, setBomItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [error, setError] = useState('');
     const [editItem, setEditItem] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState('Standard'); // 'Standard' or 'Parts'
+    const [activeTab, setActiveTab] = useState('Standard'); // 'Standard', 'JobWork', or 'Parts'
     const [isSyncing, setIsSyncing] = useState(false);
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const hasModule = (m) => userInfo.selectedModules?.includes(m);
@@ -42,15 +51,17 @@ const BOM = () => {
             setError('');
             
             // Parallel fetch with fallback to empty arrays
-            const [prods, mats, prts] = await Promise.all([
+            const [prods, mats, prts, jwOrders] = await Promise.all([
                 productService.getAll().catch(() => []),
                 materialService.getAll().catch(() => []),
-                partService.getAll().catch(() => [])
+                partService.getAll().catch(() => []),
+                jobWorkService.getAll().catch(() => [])
             ]);
             
             setProducts(prods);
             setMaterials(mats);
             setParts(prts);
+            setJobWorkOrders(jwOrders);
         } catch (err) {
             setError('An unexpected error occurred while loading data.');
         } finally {
@@ -61,7 +72,12 @@ const BOM = () => {
     const fetchBOM = async (id) => {
         try {
             setLoading(true);
-            const data = await bomService.getByProduct(id);
+            let params = {};
+            if (activeTab === 'Standard') params = { productId: id };
+            else if (activeTab === 'Parts') params = { parentPartId: id };
+            else if (activeTab === 'JobWork') params = { jobWorkOrderId: id };
+
+            const data = await jobWorkService.getBOMItems(params);
             setBomItems(data || []);
         } catch (err) {
             setError('Failed to load Bill of Materials');
@@ -116,6 +132,8 @@ const BOM = () => {
                     payload.productId = selectedEntity._id;
                 } else if (activeTab === 'Parts') {
                     payload.parentPartId = selectedEntity._id;
+                } else {
+                    payload.jobWorkOrderId = selectedEntity._id;
                 }
                 await bomService.addItem(payload);
             }
@@ -160,6 +178,24 @@ const BOM = () => {
         }
     };
 
+    const handleSyncRateToMaster = async () => {
+        if (!selectedEntity || activeTab !== 'JobWork') return;
+        if (!selectedEntity.outputProduct && !selectedEntity.outputPart) {
+            alert('No output product or part linked to this job work order.');
+            return;
+        }
+
+        setIsSyncing(true);
+        try {
+            const res = await jobWorkService.syncCatalog(selectedEntity._id);
+            alert(res.message);
+            await fetchInitialData();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to sync rate to master catalog');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     const syncCostToMaster = async () => {
         if (!selectedEntity) return;
@@ -168,10 +204,12 @@ const BOM = () => {
             let totalCost = bomItems.reduce((acc, item) => {
                 let unitCost = 0;
                 if (item.materialId) {
-                    const material = materials.find(m => m._id === (item.materialId?._id || item.materialId));
+                    const populatedMat = typeof item.materialId === 'object' ? item.materialId : null;
+                    const material = populatedMat || materials.find(m => m._id === item.materialId);
                     unitCost = material?.price || 0;
                 } else if (item.partId) {
-                    const part = parts.find(p => p._id === (item.partId?._id || item.partId));
+                    const populatedPart = typeof item.partId === 'object' ? item.partId : null;
+                    const part = populatedPart || parts.find(p => p._id === item.partId);
                     unitCost = part?.standardCost || 0;
                 }
                 return acc + ((item.qtyPerUnit || 0) * unitCost);
@@ -188,6 +226,15 @@ const BOM = () => {
                     ...selectedEntity,
                     standardCost: totalCost 
                 });
+            } else if (activeTab === 'JobWork') {
+                // Sync calculated BOM cost to the linked catalog item's standardCost
+                if (selectedEntity.outputProduct) {
+                    await productService.update(selectedEntity.outputProduct._id, { standardCost: totalCost });
+                } else if (selectedEntity.outputPart) {
+                    await partService.update(selectedEntity.outputPart._id, { standardCost: totalCost });
+                } else {
+                    throw new Error('No catalog link found to sync cost.');
+                }
             }
             
             alert('Cost synchronized with master catalog successfully!');
@@ -212,13 +259,13 @@ const BOM = () => {
         return acc + ((item.qtyPerUnit || 0) * cost);
     }, 0);
 
-    const filteredData = (activeTab === 'Standard' ? products : parts).filter(item => {
+    const filteredData = (activeTab === 'Standard' ? products : (activeTab === 'Parts' ? parts : jobWorkOrders)).filter(item => {
         const name = item.name || item.materialName || item.orderTitle || '';
         const code = item.productCode || item.orderNumber || item.partCode || '';
         return name.toLowerCase().includes(searchTerm.toLowerCase()) || code.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
-    if (loading && products.length === 0 && parts.length === 0) return <Loading />;
+    if (loading && products.length === 0 && jobWorkOrders.length === 0) return <Loading />;
 
     return (
         <div className="animate-fade-in">
@@ -234,13 +281,13 @@ const BOM = () => {
                             {selectedEntity ? (
                                 activeTab === 'Standard' 
                                     ? selectedEntity.name 
-                                    : selectedEntity.name
+                                    : (activeTab === 'Parts' ? selectedEntity.name : `${selectedEntity.clientId?.name || 'Client'}: ${selectedEntity.orderTitle || selectedEntity.materialName}`)
                             ) : 'BOM (Bill of Materials)'}
                         </h1>
                         {selectedEntity && (
                             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                {activeTab === 'Standard' ? <Package size={14} /> : <ListTree size={14} />}
-                                {selectedEntity.productCode || selectedEntity.partCode}
+                                {activeTab === 'Standard' ? <Package size={14} /> : (activeTab === 'Parts' ? <ListTree size={14} /> : <Briefcase size={14} />)}
+                                {selectedEntity.productCode || selectedEntity.orderNumber || selectedEntity.partCode}
                             </span>
                         )}
                     </div>
@@ -250,7 +297,7 @@ const BOM = () => {
                         <div className="search-container" style={{ position: 'relative' }}>
                             <input
                                 type="text"
-                                placeholder={`Search ${activeTab === 'Standard' ? 'products' : 'parts'}...`}
+                                placeholder={`Search ${activeTab === 'Standard' ? 'products' : (activeTab === 'Parts' ? 'parts' : 'orders')}...`}
                                 className="form-control"
                                 style={{ paddingLeft: '40px' }}
                                 value={searchTerm}
@@ -274,18 +321,15 @@ const BOM = () => {
                         onClick={() => setActiveTab('Standard')}
                         style={{ padding: '0.5rem 1rem', border: 'none', background: 'none', color: activeTab === 'Standard' ? 'var(--primary-color)' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: activeTab === 'Standard' ? '2px solid var(--primary-color)' : 'none', fontWeight: 600 }}
                     >
-                        Standard Products
+                        Job Work Products
                     </button>
-                    {hasModule('parts') && (
-                        <button 
-                            className={`tab-btn ${activeTab === 'Parts' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('Parts')}
-                            style={{ padding: '0.5rem 1rem', border: 'none', background: 'none', color: activeTab === 'Parts' ? 'var(--primary-color)' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: activeTab === 'Parts' ? '2px solid var(--primary-color)' : 'none', fontWeight: 600 }}
-                        >
-                            Sub-Assembly Parts
-                        </button>
-                    )}
-
+                    <button 
+                        className={`tab-btn ${activeTab === 'Parts' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('Parts')}
+                        style={{ padding: '0.5rem 1rem', border: 'none', background: 'none', color: activeTab === 'Parts' ? 'var(--primary-color)' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: activeTab === 'Parts' ? '2px solid var(--primary-color)' : 'none', fontWeight: 600 }}
+                    >
+                        Job Work Parts
+                    </button>
                 </div>
             )}
 
@@ -299,16 +343,21 @@ const BOM = () => {
                                 <div key={item._id} className="glass-card clickable-card" onClick={() => handleEntitySelect(item)} style={{ padding: '1.5rem', transition: 'transform 0.2s', cursor: 'pointer' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
                                         <div style={{ background: 'rgba(99, 102, 241, 0.1)', padding: '12px', borderRadius: '12px' }}>
-                                            {activeTab === 'Standard' ? <Package size={24} className="text-primary" /> : <ListTree size={24} className="text-info" />}
+                                            {activeTab === 'Standard' ? <Package size={24} className="text-primary" /> : (activeTab === 'Parts' ? <ListTree size={24} className="text-info" /> : <Briefcase size={24} className="text-accent" />)}
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{item.name}</h3>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item.productCode || item.partCode}</span>
+                                            {activeTab === 'JobWork' && (
+                                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary-color)', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                                    {item.clientId?.name || 'Unknown Client'}
+                                                </div>
+                                            )}
+                                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{item.name || item.orderTitle || item.materialName}</h3>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item.productCode || item.orderNumber || item.partCode}</span>
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span className={`badge ${activeTab === 'Standard' ? 'badge-info' : 'badge-primary'}`}>
-                                            {item.category}
+                                        <span className={`badge ${activeTab === 'Standard' ? 'badge-info' : (activeTab === 'Parts' ? 'badge-primary' : 'badge-warning')}`}>
+                                            {activeTab === 'Standard' ? item.category : (activeTab === 'Parts' ? item.category : item.jobType)}
                                         </span>
                                         <ChevronRight size={18} style={{ color: 'var(--text-secondary)' }} />
                                     </div>
@@ -318,11 +367,11 @@ const BOM = () => {
                     ) : (
                         <div className="glass-card" style={{ textAlign: 'center', padding: '5rem 2rem' }}>
                             <Package size={64} style={{ color: 'var(--primary-color)', opacity: 0.3, marginBottom: '1.5rem' }} />
-                            <h2>No {activeTab === 'Standard' ? 'Products' : 'Parts'} Found</h2>
+                            <h2>No {activeTab === 'Standard' ? 'Products' : 'Job Orders'} Found</h2>
                             <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
                                 {activeTab === 'Standard' 
                                     ? "You need to create products before you can define their Material Recipe (BOM)." 
-                                    : "No sub-assembly parts found. Create parts to define their sub-components."}
+                                    : (activeTab === 'Parts' ? "No sub-assembly parts found. Create parts to define their sub-components." : "No active job work orders found to define materials for.")}
                             </p>
                         </div>
                     )}
@@ -348,13 +397,15 @@ const BOM = () => {
                                         let typeLabel = '';
                                         
                                         if (item.materialId) {
-                                            const material = materials.find(m => m._id === (item.materialId?._id || item.materialId));
+                                            const populatedMat = typeof item.materialId === 'object' ? item.materialId : null;
+                                            const material = populatedMat || materials.find(m => m._id === item.materialId);
                                             name = material?.name || 'Unknown';
                                             code = material?.materialCode || '';
                                             unitCost = material?.price || 0;
                                             typeLabel = 'Material';
                                         } else if (item.partId) {
-                                            const part = parts.find(p => p._id === (item.partId?._id || item.partId));
+                                            const populatedPart = typeof item.partId === 'object' ? item.partId : null;
+                                            const part = populatedPart || parts.find(p => p._id === item.partId);
                                             name = part?.name || 'Unknown';
                                             code = part?.partCode || '';
                                             unitCost = part?.standardCost || 0;
@@ -392,7 +443,7 @@ const BOM = () => {
                             <div style={{ textAlign: 'center', padding: '5rem 2rem' }}>
                                 <Calculator size={48} style={{ color: 'var(--primary-color)', opacity: 0.2, marginBottom: '1rem' }} />
                                 <h3 style={{ color: 'var(--text-secondary)' }}>Material Recipe is Empty</h3>
-                                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Start by adding the first material required for this {activeTab === 'Standard' ? 'product' : 'part'}.</p>
+                                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Start by adding the first material required for this {activeTab === 'Standard' ? 'product' : (activeTab === 'Parts' ? 'part' : 'job')}.</p>
                                 <button className="btn btn-primary" onClick={() => setShowModal(true)}>
                                     <Plus size={16} style={{ marginRight: '8px' }} /> Add First Material
                                 </button>
@@ -407,7 +458,7 @@ const BOM = () => {
                                 <h3 style={{ margin: 0 }}>Cost Summary</h3>
                             </div>
                             <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                                Estimated internal cost per unit (Materials Only).
+                                Estimated internal cost {activeTab === 'Standard' ? 'per unit' : 'for this job'} (Materials Only).
                             </div>
                             <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--accent-color)', marginBottom: '0.5rem' }}>
                                 ₹{totalEstimatedCost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
@@ -444,7 +495,47 @@ const BOM = () => {
                                 </div>
                             )}
 
+                            {activeTab === 'JobWork' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+                                    <button 
+                                        className="btn btn-primary" 
+                                        style={{ 
+                                            width: '100%', 
+                                            background: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)', 
+                                            color: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'white' : 'var(--text-secondary)',
+                                            border: '1px solid ' + ((selectedEntity.outputProduct || selectedEntity.outputPart) ? 'transparent' : 'rgba(255,255,255,0.1)'),
+                                            cursor: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'pointer' : 'not-allowed'
+                                        }}
+                                        onClick={() => (selectedEntity.outputProduct || selectedEntity.outputPart) && handleSyncRateToMaster()}
+                                        disabled={isSyncing}
+                                    >
+                                        {isSyncing ? (
+                                            <RefreshCw size={16} className="animate-spin" />
+                                        ) : (
+                                            <><RefreshCw size={16} style={{ marginRight: '8px' }} /> {(selectedEntity.outputProduct || selectedEntity.outputPart) ? 'Sync Rate to Master' : 'Link to Catalog First'}</>
+                                        )}
+                                    </button>
 
+                                    <button 
+                                        className="btn btn-primary" 
+                                        style={{ 
+                                            width: '100%', 
+                                            background: 'rgba(79, 70, 229, 0.1)', 
+                                            color: 'var(--primary-color)', 
+                                            border: '1px solid var(--primary-color)',
+                                            display: (selectedEntity.outputProduct || selectedEntity.outputPart) ? 'flex' : 'none'
+                                        }}
+                                        onClick={syncCostToMaster}
+                                        disabled={isSyncing || bomItems.length === 0}
+                                    >
+                                        {isSyncing ? (
+                                            <RefreshCw size={16} className="animate-spin" />
+                                        ) : (
+                                            <><RefreshCw size={16} style={{ marginRight: '8px' }} /> Sync BOM Cost to Catalog</>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
 
                             {activeTab === 'Standard' && (
                                 <div style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px', marginTop: '1.5rem' }}>
@@ -460,18 +551,23 @@ const BOM = () => {
                             </div>
                             <div className="summary-scroll-container">
                                 <div className="info-row summary-item-chip" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                                    <span className="label" style={{ color: 'var(--text-secondary)' }}>Master Standard Cost:</span>
+                                    <span className="label" style={{ color: 'var(--text-secondary)' }}>{activeTab === 'JobWork' ? 'Order Total Amount:' : 'Master Standard Cost:'}</span>
                                     <span className="value" style={{ fontWeight: 600, color: 'var(--accent-color)' }}>₹{(selectedEntity.standardCost || selectedEntity.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                                 </div>
                                 <div className="info-row summary-item-chip" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                                    <span className="label" style={{ color: 'var(--text-secondary)' }}>Category:</span>
-                                    <span className="value" style={{ fontWeight: 600 }}>{selectedEntity.category}</span>
+                                    <span className="label" style={{ color: 'var(--text-secondary)' }}>{activeTab === 'Standard' ? 'Category' : 'Job Type'}:</span>
+                                    <span className="value" style={{ fontWeight: 600 }}>{selectedEntity.category || selectedEntity.jobType}</span>
                                 </div>
                                 <div className="info-row summary-item-chip" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                                    <span className="label" style={{ color: 'var(--text-secondary)' }}>Output Unit:</span>
-                                    <span className="value" style={{ fontWeight: 600 }}>{selectedEntity.unit}</span>
+                                    <span className="label" style={{ color: 'var(--text-secondary)' }}>{activeTab === 'Standard' ? 'Output Unit' : 'Quantity'}:</span>
+                                    <span className="value" style={{ fontWeight: 600 }}>{selectedEntity.unit || selectedEntity.materialQuantity}</span>
                                 </div>
-
+                                {activeTab === 'JobWork' && (
+                                    <div className="info-row summary-item-chip" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                                        <span className="label" style={{ color: 'var(--text-secondary)' }}>Client:</span>
+                                        <span className="value" style={{ fontWeight: 600 }}>{selectedEntity.clientId?.name}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -497,15 +593,13 @@ const BOM = () => {
                                     required
                                 >
                                     <option value="">-- Choose Material or Part --</option>
-                                    {hasModule('materials') && (
-                                        <optgroup label="Materials">
-                                            {materials.map(m => (
-                                                <option key={`mat-${m._id}`} value={`mat-${m._id}`}>{m.name} ({m.materialCode})</option>
-                                            ))}
-                                        </optgroup>
-                                    )}
-                                    {hasModule('parts') && activeTab !== 'Parts' && (
-                                        <optgroup label="Parts">
+                                    <optgroup label="Job Work Materials">
+                                        {materials.map(m => (
+                                            <option key={`mat-${m._id}`} value={`mat-${m._id}`}>{m.name} ({m.materialCode})</option>
+                                        ))}
+                                    </optgroup>
+                                    {activeTab !== 'Parts' && (
+                                        <optgroup label="Job Work Parts">
                                             {parts.filter(p => p._id !== selectedEntity._id).map(p => (
                                                 <option key={`part-${p._id}`} value={`part-${p._id}`}>{p.name} ({p.partCode})</option>
                                             ))}
@@ -523,7 +617,7 @@ const BOM = () => {
                                         value={formData.qtyPerUnit} 
                                         onChange={handleInputChange} 
                                         className="form-control" 
-                                        placeholder={activeTab === 'Standard' ? "Qty per Product Unit" : "Qty per Part Unit"}
+                                        placeholder={activeTab === 'Standard' ? "Qty per Product Unit" : (activeTab === 'Parts' ? "Qty per Part Unit" : "Total Qty for this Job")}
                                         required 
                                         min="0.0001"
                                     />
@@ -555,4 +649,4 @@ const BOM = () => {
     );
 };
 
-export default BOM;
+export default JobWorkBOM;

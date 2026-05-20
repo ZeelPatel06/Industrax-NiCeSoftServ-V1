@@ -21,6 +21,7 @@ const Employees = lazy(() => import('./pages/Employees'));
 const Invoices = lazy(() => import('./pages/Invoices'));
 const Attendance = lazy(() => import('./pages/Attendance'));
 const Machines = lazy(() => import('./pages/Machines'));
+const JobWork = lazy(() => import('./pages/JobWork'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Offline = lazy(() => import('./pages/Offline'));
 const DataManagement = lazy(() => import('./pages/DataManagement'));
@@ -153,6 +154,7 @@ function App() {
           <Route path="/inventory" element={<PrivateRoute><ModuleGuard module="inventory"><Inventory /></ModuleGuard></PrivateRoute>} />
           <Route path="/bom" element={<PrivateRoute><ModuleGuard module="bom"><BOM /></ModuleGuard></PrivateRoute>} />
           <Route path="/orders" element={<PrivateRoute><ModuleGuard module="orders"><Orders /></ModuleGuard></PrivateRoute>} />
+          <Route path="/job-work" element={<PrivateRoute><ModuleGuard module="jobWork"><JobWork /></ModuleGuard></PrivateRoute>} />
           <Route path="/production" element={<PrivateRoute><ModuleGuard module="production"><Production /></ModuleGuard></PrivateRoute>} />
           <Route path="/attendance" element={<PrivateRoute><ModuleGuard module="attendance"><Attendance /></ModuleGuard></PrivateRoute>} />
           <Route path="/employees" element={<PrivateRoute><ModuleGuard module="employees"><Employees /></ModuleGuard></PrivateRoute>} />

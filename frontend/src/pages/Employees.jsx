@@ -105,7 +105,16 @@ const Employees = () => {
     };
 
     const getEmployeeStats = (empId) => {
-        const records = attendance.filter(a => a.userId?._id === empId || a.userId === empId);
+        const selectedDate = new Date(currentDate);
+        const targetMonth = selectedDate.getMonth();
+        const targetYear = selectedDate.getFullYear();
+        
+        const records = attendance.filter(a => {
+            const isUser = a.userId?._id === empId || a.userId === empId;
+            if (!isUser) return false;
+            const recordDate = new Date(a.date);
+            return recordDate.getMonth() === targetMonth && recordDate.getFullYear() === targetYear;
+        });
         const presentDays = records.filter(a => a.status === 'Present').length;
         const emp = employees.find(e => e._id === empId);
         const wages = presentDays * (emp?.dailyWage || 0);
@@ -159,6 +168,7 @@ const Employees = () => {
                             value={currentDate} 
                             onChange={(e) => setCurrentDate(e.target.value)} 
                             className="form-control" 
+                            style={{ width: 'auto' }}
                         />
                     </div>
                 </div>
@@ -241,37 +251,53 @@ const Employees = () => {
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                            {!todayRecord ? (
-                                                <>
-                                                    <button 
-                                                        className="btn" 
-                                                        style={{ padding: '6px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}
-                                                        onClick={() => markAttendance(emp._id, 'Present')}
-                                                        title="Check In"
-                                                    >
-                                                        <Check size={18} />
-                                                    </button>
-                                                    <button 
-                                                        className="btn" 
-                                                        style={{ padding: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}
-                                                        onClick={() => markAttendance(emp._id, 'Absent')}
-                                                        title="Mark Absent"
-                                                    >
-                                                        <XCircle size={18} />
-                                                    </button>
-                                                </>
-                                            ) : todayRecord.status === 'Present' && !todayRecord.checkOutTime ? (
-                                                <button 
-                                                    className="btn" 
-                                                    style={{ padding: '6px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning-color)' }}
-                                                    onClick={() => markAttendance(emp._id, 'Present', true)}
-                                                    title="Check Out"
-                                                >
-                                                    <Clock size={18} />
-                                                </button>
-                                            ) : (
-                                                <div style={{ width: '40px' }}></div> // Placeholder to keep spacing
-                                            )}
+                                            {/* Check In */}
+                                            <button 
+                                                className="btn" 
+                                                style={{ 
+                                                    padding: '6px', 
+                                                    background: todayRecord?.status === 'Present' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.08)', 
+                                                    color: todayRecord?.status === 'Present' ? 'var(--success-color)' : 'rgba(16, 185, 129, 0.6)',
+                                                    border: todayRecord?.status === 'Present' ? '1px solid var(--success-color)' : '1px solid transparent',
+                                                    fontWeight: todayRecord?.status === 'Present' ? 'bold' : 'normal'
+                                                }}
+                                                onClick={() => markAttendance(emp._id, 'Present')}
+                                                title="Check In"
+                                            >
+                                                <Check size={18} />
+                                            </button>
+
+                                            {/* Check Out */}
+                                            <button 
+                                                className="btn" 
+                                                style={{ 
+                                                    padding: '6px', 
+                                                    background: todayRecord?.checkOutTime ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.08)', 
+                                                    color: todayRecord?.checkOutTime ? 'var(--warning-color)' : 'rgba(245, 158, 11, 0.6)',
+                                                    border: todayRecord?.checkOutTime ? '1px solid var(--warning-color)' : '1px solid transparent',
+                                                    opacity: (!todayRecord || todayRecord.status !== 'Present') ? 0.4 : 1
+                                                }}
+                                                onClick={() => markAttendance(emp._id, 'Present', true)}
+                                                disabled={!todayRecord || todayRecord.status !== 'Present'}
+                                                title={todayRecord?.checkOutTime ? "Checked Out" : "Check Out"}
+                                            >
+                                                <Clock size={18} />
+                                            </button>
+
+                                            {/* Mark Absent */}
+                                            <button 
+                                                className="btn" 
+                                                style={{ 
+                                                    padding: '6px', 
+                                                    background: todayRecord?.status === 'Absent' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.08)', 
+                                                    color: todayRecord?.status === 'Absent' ? 'var(--danger-color)' : 'rgba(239, 68, 68, 0.6)',
+                                                    border: todayRecord?.status === 'Absent' ? '1px solid var(--danger-color)' : '1px solid transparent'
+                                                }}
+                                                onClick={() => markAttendance(emp._id, 'Absent')}
+                                                title="Mark Absent"
+                                            >
+                                                <XCircle size={18} />
+                                            </button>
                                             <button 
                                                 className="btn" 
                                                 style={{ padding: '6px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary-color)' }}

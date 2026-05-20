@@ -1,5 +1,5 @@
 import express from 'express';
-import { getInvoices, createInvoice, getInvoiceById, deleteInvoice, updatePayment } from '../controllers/invoiceController.js';
+import { getInvoices, createInvoice, getInvoiceById, deleteInvoice, updatePayment, uploadPDF } from '../controllers/invoiceController.js';
 import { protect, ownerOrManager } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -14,5 +14,8 @@ router.route('/:id')
 
 router.route('/:id/payment')
     .put(protect, ownerOrManager, updatePayment);
+
+router.route('/:id/pdf')
+    .put(protect, ownerOrManager, uploadPDF);
 
 export default router;

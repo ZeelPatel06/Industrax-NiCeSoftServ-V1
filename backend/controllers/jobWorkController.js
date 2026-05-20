@@ -122,15 +122,15 @@ export const syncToCatalog = asyncHandler(async (req, res) => {
     const qty = order.materialQuantity || 0;
 
     if (order.outputProduct) {
-        const Product = (await import('../models/Product.js')).default;
-        await Product.findByIdAndUpdate(order.outputProduct._id, {
+        const JobWorkProduct = (await import('../models/JobWorkProduct.js')).default;
+        await JobWorkProduct.findByIdAndUpdate(order.outputProduct._id, {
             sellingPrice: rate
         });
     }
 
     if (order.outputPart) {
-        const Part = (await import('../models/Part.js')).default;
-        await Part.findByIdAndUpdate(order.outputPart._id, {
+        const JobWorkPart = (await import('../models/JobWorkPart.js')).default;
+        await JobWorkPart.findByIdAndUpdate(order.outputPart._id, {
             sellingPrice: rate
         });
     }

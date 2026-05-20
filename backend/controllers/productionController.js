@@ -15,7 +15,7 @@ import Machine from '../models/Machine.js';
 // @route   POST /api/production
 // @access  Private/Owner or Operator
 const createProductionJob = asyncHandler(async (req, res) => {
-    let { jobId, orderId, productId, partId, plannedQty, endDate, priority, machineId, operatorId } = req.body;
+    let { jobId, orderId, productId, productModel = 'Product', partId, partModel = 'Part', plannedQty, endDate, priority, machineId, operatorId } = req.body;
 
     const ownerId = req.user.role === 'Owner' ? req.user.email : req.user.owner;
     
@@ -135,7 +135,8 @@ const createProductionJob = asyncHandler(async (req, res) => {
             bomQuery = { jobWorkOrderId: orderId, owner: ownerId, isDeleted: false };
         }
             
-        const bomItems = await BOM.find(bomQuery).populate('materialId').populate('partId');
+        let BOMModel = (productModel === 'JobWorkProduct' || partModel === 'JobWorkPart') ? (await import('../models/JobWorkBOM.js')).default : BOM;
+        const bomItems = await BOMModel.find(bomQuery).populate('materialId').populate('partId');
         const insufficientMaterials = [];
 
         for (let item of bomItems) {
@@ -170,7 +171,9 @@ const createProductionJob = asyncHandler(async (req, res) => {
         orderId,
         orderModel,
         productId,
+        productModel,
         partId,
+        partModel,
         plannedQty,
         endDate,
         priority: priority || 'Normal',
@@ -370,10 +373,12 @@ const completeProduction = asyncHandler(async (req, res) => {
             ? { parentPartId: job.partId, owner: ownerId, isDeleted: false }
             : { jobWorkOrderId: job.orderId, owner: ownerId, isDeleted: false };
         
-    const bomItems = await BOM.find(bomQuery);
+    let BOMModel = (job.productModel === 'JobWorkProduct' || job.partModel === 'JobWorkPart') ? (await import('../models/JobWorkBOM.js')).default : BOM;
+    const bomItems = await BOMModel.find(bomQuery);
     for (let item of bomItems) {
         // Handle Material Deduction
-        const material = await Material.findOne({ _id: item.materialId, owner: ownerId, isDeleted: false });
+        let MaterialModel = item.materialId ? (job.productModel === 'JobWorkProduct' || job.partModel === 'JobWorkPart' ? (await import('../models/JobWorkMaterial.js')).default : Material) : Material;
+        const material = await MaterialModel.findOne({ _id: item.materialId, owner: ownerId, isDeleted: false });
         if (material) {
             const usedQty = Number((item.qtyPerUnit * job.producedQty).toFixed(4));
             const initiallyReserved = Number((item.qtyPerUnit * job.plannedQty).toFixed(4));
@@ -398,8 +403,8 @@ const completeProduction = asyncHandler(async (req, res) => {
         }
 
         // Handle Part Deduction (Sub-assemblies used as components)
-        const Part = mongoose.model('Part');
-        const componentPart = await Part.findOne({ _id: item.partId, owner: ownerId, isDeleted: false });
+        const PartModelToUse = job.productModel === 'JobWorkProduct' || job.partModel === 'JobWorkPart' ? (await import('../models/JobWorkPart.js')).default : mongoose.model('Part');
+        const componentPart = await PartModelToUse.findOne({ _id: item.partId, owner: ownerId, isDeleted: false });
         if (componentPart) {
             const usedQty = Number((item.qtyPerUnit * job.producedQty).toFixed(4));
             const initiallyReserved = Number((item.qtyPerUnit * job.plannedQty).toFixed(4));
@@ -441,7 +446,8 @@ const completeProduction = asyncHandler(async (req, res) => {
 
     // Update product or part inventory
     if (job.productId) {
-        const product = await Product.findOne({ _id: job.productId, owner: ownerId, isDeleted: false });
+        let TargetProductModel = job.productModel === 'JobWorkProduct' ? (await import('../models/JobWorkProduct.js')).default : Product;
+        const product = await TargetProductModel.findOne({ _id: job.productId, owner: ownerId, isDeleted: false });
         if (product) {
             product.currentStock = Number((product.currentStock + job.producedQty).toFixed(4));
             await product.save();
@@ -457,8 +463,8 @@ const completeProduction = asyncHandler(async (req, res) => {
             });
         }
     } else if (job.partId) {
-        const Part = mongoose.model('Part');
-        const part = await Part.findOne({ _id: job.partId, owner: ownerId, isDeleted: false });
+        let TargetPartModel = job.partModel === 'JobWorkPart' ? (await import('../models/JobWorkPart.js')).default : mongoose.model('Part');
+        const part = await TargetPartModel.findOne({ _id: job.partId, owner: ownerId, isDeleted: false });
         if (part) {
             part.currentStock = Number((part.currentStock + job.producedQty).toFixed(4));
             await part.save();
@@ -518,7 +524,8 @@ const deleteProductionJob = asyncHandler(async (req, res) => {
                 ? { parentPartId: job.partId, owner: ownerId, isDeleted: false }
                 : { jobWorkOrderId: job.orderId, owner: ownerId, isDeleted: false };
 
-        const bomItems = await BOM.find(bomQuery);
+        let BOMModel = (job.productModel === 'JobWorkProduct' || job.partModel === 'JobWorkPart') ? (await import('../models/JobWorkBOM.js')).default : BOM;
+        const bomItems = await BOMModel.find(bomQuery);
         for (let item of bomItems) {
             const material = await Material.findOne({ _id: item.materialId, owner: ownerId, isDeleted: false });
             const part = await mongoose.model('Part').findOne({ _id: item.partId, owner: ownerId, isDeleted: false });
@@ -593,7 +600,8 @@ const recalculateInventoryReservations = async (ownerId) => {
                 ? { parentPartId: job.partId, owner: ownerId, isDeleted: false }
                 : { jobWorkOrderId: (job.orderId?._id || job.orderId), owner: ownerId, isDeleted: false };
             
-        const bomItems = await BOM.find(bomQuery);
+        let BOMModel = (job.productModel === 'JobWorkProduct' || job.partModel === 'JobWorkPart') ? (await import('../models/JobWorkBOM.js')).default : BOM;
+        const bomItems = await BOMModel.find(bomQuery);
         for (const item of bomItems) {
             const needed = (item.qtyPerUnit * job.plannedQty);
             if (item.materialId) {
@@ -684,7 +692,8 @@ const editProductionJob = asyncHandler(async (req, res) => {
     if (!skipBOM) {
         const oldBomQuery = job.productId ? { productId: job.productId } : job.partId ? { parentPartId: job.partId } : { jobWorkOrderId: (job.orderId?._id || job.orderId) };
         oldBomQuery.owner = ownerId; oldBomQuery.isDeleted = false;
-        const oldBomItems = await BOM.find(oldBomQuery).populate('materialId').populate('partId');
+        let BOMModelOld = (job.productModel === 'JobWorkProduct' || job.partModel === 'JobWorkPart') ? (await import('../models/JobWorkBOM.js')).default : BOM;
+        const oldBomItems = await BOMModelOld.find(oldBomQuery).populate('materialId').populate('partId');
         
         let newBomQuery;
         if (orderModel === 'Order' || !order) {
@@ -693,7 +702,8 @@ const editProductionJob = asyncHandler(async (req, res) => {
             newBomQuery = { jobWorkOrderId: orderId };
         }
         newBomQuery.owner = ownerId; newBomQuery.isDeleted = false;
-        const newBomItems = await BOM.find(newBomQuery).populate('materialId').populate('partId');
+        let BOMModelNew = (productModel === 'JobWorkProduct' || partModel === 'JobWorkPart') ? (await import('../models/JobWorkBOM.js')).default : BOM;
+        const newBomItems = await BOMModelNew.find(newBomQuery).populate('materialId').populate('partId');
         
         const availabilityMap = new Map();
         for (let item of oldBomItems) {

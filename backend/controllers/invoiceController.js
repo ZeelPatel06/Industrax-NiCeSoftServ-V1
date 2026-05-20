@@ -106,3 +106,19 @@ export const deleteInvoice = asyncHandler(async (req, res) => {
         throw new Error('Invoice not found');
     }
 });
+
+export const uploadPDF = asyncHandler(async (req, res) => {
+    const { pdfFile, pdfFileName } = req.body;
+    const ownerId = req.user.role === 'Owner' ? req.user.email : req.user.owner;
+    const invoice = await Invoice.findById(req.params.id);
+
+    if (invoice && invoice.owner === ownerId) {
+        invoice.pdfFile = pdfFile;
+        invoice.pdfFileName = pdfFileName || 'Purchase_Order.pdf';
+        await invoice.save();
+        res.json(invoice);
+    } else {
+        res.status(404);
+        throw new Error('Invoice not found');
+    }
+});

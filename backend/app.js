@@ -23,6 +23,7 @@ import employeeRoutes from './routes/employeeRoutes.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
 import invoiceRoutes from './routes/invoiceRoutes.js';
 import machineRoutes from './routes/machineRoutes.js';
+import uploadedDocumentRoutes from './routes/uploadedDocumentRoutes.js';
 import { protect } from './middleware/authMiddleware.js';
 import moduleRoutes from './routes/moduleRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
@@ -94,11 +95,12 @@ app.use('/api/dashboard', protect, dashboardRoutes);
 app.use('/api/production', protect, isModuleEnabled('production'), productionRoutes);
 app.use('/api/data', protect, dataRoutes);
 app.use('/api/clients', protect, clientRoutes);
-app.use('/api/job-work', protect, isModuleEnabled(['orders', 'bom']), jobWorkRoutes);
+app.use('/api/job-work', protect, isModuleEnabled(['jobWork', 'orders', 'bom']), jobWorkRoutes);
 app.use('/api/employees', protect, isModuleEnabled(['employees', 'attendance', 'production']), employeeRoutes);
 app.use('/api/attendance', protect, isModuleEnabled(['attendance', 'employees']), attendanceRoutes);
 app.use('/api/invoices', protect, isModuleEnabled(['invoices', 'orders']), invoiceRoutes);
 app.use('/api/machines', protect, isModuleEnabled(['machines', 'production']), machineRoutes);
+app.use('/api/uploaded-documents', protect, isModuleEnabled(['invoices', 'orders']), uploadedDocumentRoutes);
 
 app.get('/', (req, res) => {
     res.send('API is running...');

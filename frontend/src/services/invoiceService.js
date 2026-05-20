@@ -20,6 +20,10 @@ const invoiceService = {
     delete: async (id) => {
         const { data } = await apiClient.delete(`/invoices/${id}`);
         return data;
+    },
+    uploadPDF: async (id, pdfFile, pdfFileName) => {
+        const { data } = await apiClient.put(`/invoices/${id}/pdf`, { pdfFile, pdfFileName });
+        return data;
     }
 };
 

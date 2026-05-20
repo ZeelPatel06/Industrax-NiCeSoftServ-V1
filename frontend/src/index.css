@@ -244,6 +244,12 @@ p {
   align-items: center;
 }
 
+.header-actions-group {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .inventory-actions-row {
   display: flex;
   gap: 1rem;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Archive, ShoppingCart, Hammer, LogOut, X, Database, ChevronLeft, ChevronRight, ShelvingUnit, ClipboardList, Settings, Network, CalendarCheck, Factory, Users, Component } from 'lucide-react';
+import { LayoutDashboard, Package, Archive, ShoppingCart, Hammer, LogOut, X, Database, ChevronLeft, ChevronRight, ShelvingUnit, ClipboardList, Settings, Network, CalendarCheck, Factory, Users, Component, Briefcase } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
     const navigate = useNavigate();
@@ -56,7 +56,8 @@ const Sidebar = ({ isOpen, onClose }) => {
                     ...(hasModule('materials') ? [{ to: '/materials', icon: <Component size={20} style={iconStyle} />, label: 'Materials', sub: 'Raw material list' }] : []),
                     ...(hasModule('bom') ? [{ to: '/bom', icon: <Network size={20} style={iconStyle} />, label: 'BOM', sub: 'What goes into each product' }] : []),
                     ...(hasModule('inventory') ? [{ to: '/inventory', icon: <ShelvingUnit size={20} style={iconStyle} />, label: 'Inventory', sub: 'Stock in / Stock out' }] : []),
-                    ...(hasModule('orders') ? [{ to: '/orders', icon: <ShoppingCart size={20} style={iconStyle} />, label: 'Orders', sub: 'Customer & job orders' }] : []),
+                    ...(hasModule('orders') ? [{ to: '/orders', icon: <ShoppingCart size={20} style={iconStyle} />, label: 'Orders', sub: 'Customer orders' }] : []),
+                    ...(hasModule('jobWork') ? [{ to: '/job-work', icon: <Briefcase size={20} style={iconStyle} />, label: 'Job Work', sub: 'Custom jobs & inventory' }] : []),
                     ...(hasModule('production') ? [{ to: '/production', icon: <Hammer size={20} style={iconStyle} />, label: 'Production', sub: 'Schedule & track jobs' }] : []),
                     ...(hasModule('attendance') ? [{ to: '/attendance', icon: <CalendarCheck size={20} style={iconStyle} />, label: 'Attendance', sub: 'Employee daily log' }] : []),
                     ...(hasModule('employees') ? [{ to: '/employees', icon: <Users size={20} style={iconStyle} />, label: 'Employees', sub: 'Manage your team' }] : []),

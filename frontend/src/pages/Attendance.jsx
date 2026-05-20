@@ -14,12 +14,14 @@ const Attendance = () => {
 
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const isOwner = userInfo?.role === 'Owner';
+    const isEngineer = userInfo?.role === 'Engineer';
+    const canCheckInOut = isOwner || isEngineer;
 
     const fetchData = async () => {
         try {
             setLoading(true);
             setError('');
-            const data = await attendanceService.getAll(filterDate).catch(() => []);
+            const data = await attendanceService.getAll(isOwner ? filterDate : undefined).catch(() => []);
             setAttendance(data || []);
 
             if (!isOwner) {
@@ -65,7 +67,15 @@ const Attendance = () => {
 
     const getStats = () => {
         if (isOwner) return null;
-        const presentDays = attendance.filter(a => a.status === 'Present').length;
+        const selectedDate = new Date(filterDate);
+        const targetMonth = selectedDate.getMonth();
+        const targetYear = selectedDate.getFullYear();
+        
+        const records = attendance.filter(a => {
+            const recordDate = new Date(a.date);
+            return recordDate.getMonth() === targetMonth && recordDate.getFullYear() === targetYear;
+        });
+        const presentDays = records.filter(a => a.status === 'Present').length;
         const earnings = presentDays * (myEmployeeRecord?.dailyWage || 0);
         return { presentDays, earnings };
     };
@@ -78,7 +88,11 @@ const Attendance = () => {
 
     const filteredRecords = isOwner 
         ? attendance.filter(a => a.userId?.name.toLowerCase().includes(searchTerm.toLowerCase()))
-        : attendance;
+        : attendance.filter(a => {
+            const recordDate = new Date(a.date);
+            const selectedDate = new Date(filterDate);
+            return recordDate.getMonth() === selectedDate.getMonth() && recordDate.getFullYear() === selectedDate.getFullYear();
+        }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // Helper to format check-in time with legacy support
     const formatTime = (timeStr) => {
@@ -131,47 +145,61 @@ const Attendance = () => {
 
             {!isOwner && (
                 <div className="grid-3-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-                    <div className="glass-card" style={{ textAlign: 'center', padding: '2rem' }}>
-                        <div style={{ background: 'rgba(99, 102, 241, 0.1)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-                            <CheckCircle size={30} className="text-primary" />
-                        </div>
-                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Shift Control</h3>
-                        <div style={{ marginTop: '1rem' }}>
-                            {!todayRecord ? (
-                                <button 
-                                    className="btn btn-primary" 
-                                    style={{ width: '100%', padding: '12px', background: 'linear-gradient(to right, #6366f1, #4f46e5)', border: 'none', boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }} 
-                                    onClick={handleCheckIn}
-                                >
-                                    <Clock size={18} style={{ marginRight: '8px' }} /> Check In Now
-                                </button>
-                            ) : todayRecord.status === 'Present' && !todayRecord.checkOutTime ? (
-                                <button 
-                                    className="btn" 
-                                    style={{ width: '100%', padding: '12px', background: 'linear-gradient(to right, #f59e0b, #d97706)', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)' }} 
-                                    onClick={handleCheckOut}
-                                >
-                                    <ArrowRight size={18} style={{ marginRight: '8px' }} /> Check Out / Leave
-                                </button>
-                            ) : (
-                                <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)', padding: '10px', borderRadius: '12px', fontWeight: 600 }}>
-                                    Shift Completed Today
+                    {canCheckInOut && (
+                        <div className="glass-card" style={{ textAlign: 'center', padding: '2rem' }}>
+                            <div style={{ background: 'rgba(99, 102, 241, 0.1)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                                <CheckCircle size={30} className="text-primary" />
+                            </div>
+                            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Shift Control</h3>
+                            <div style={{ marginTop: '1rem' }}>
+                                {!todayRecord ? (
+                                    canCheckInOut ? (
+                                        <button 
+                                            className="btn btn-primary" 
+                                            style={{ width: '100%', padding: '12px', background: 'linear-gradient(to right, #6366f1, #4f46e5)', border: 'none', boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }} 
+                                            onClick={handleCheckIn}
+                                        >
+                                            <Clock size={18} style={{ marginRight: '8px' }} /> Check In Now
+                                        </button>
+                                    ) : (
+                                        <div style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem' }}>
+                                            Shift Not Started. Marked by Owner/Engineer only.
+                                        </div>
+                                    )
+                                ) : todayRecord.status === 'Present' && !todayRecord.checkOutTime ? (
+                                    canCheckInOut ? (
+                                        <button 
+                                            className="btn" 
+                                            style={{ width: '100%', padding: '12px', background: 'linear-gradient(to right, #f59e0b, #d97706)', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)' }} 
+                                            onClick={handleCheckOut}
+                                        >
+                                            <ArrowRight size={18} style={{ marginRight: '8px' }} /> Check Out / Leave
+                                        </button>
+                                    ) : (
+                                        <div style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary-color)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600 }}>
+                                            Active Shift. Checked-out by Owner/Engineer only.
+                                        </div>
+                                    )
+                                ) : (
+                                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)', padding: '10px', borderRadius: '12px', fontWeight: 600 }}>
+                                        Shift Completed Today
+                                    </div>
+                                )}
+                            </div>
+                            {todayRecord?.checkInTime && (
+                                <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                        <Clock size={12} className="text-primary" /> Arrival: {formatTime(todayRecord.checkInTime)}
+                                    </span>
+                                    {todayRecord.checkOutTime && (
+                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                            <ArrowRight size={12} className="text-warning" /> Leaving: {formatTime(todayRecord.checkOutTime)}
+                                        </span>
+                                    )}
                                 </div>
                             )}
                         </div>
-                        {todayRecord?.checkInTime && (
-                            <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                    <Clock size={12} className="text-primary" /> Arrival: {formatTime(todayRecord.checkInTime)}
-                                </span>
-                                {todayRecord.checkOutTime && (
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                        <ArrowRight size={12} className="text-warning" /> Leaving: {formatTime(todayRecord.checkOutTime)}
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    )}
 
                     <div className="glass-card" style={{ textAlign: 'center', padding: '2rem' }}>
                         <div style={{ background: 'rgba(16, 185, 129, 0.1)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>

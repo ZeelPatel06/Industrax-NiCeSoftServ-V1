@@ -35,13 +35,23 @@ const productionJobSchema = new mongoose.Schema(
             default: 0,
         },
         // Old fields for backward compatibility
+        productModel: {
+            type: String,
+            enum: ['Product', 'JobWorkProduct'],
+            default: 'Product',
+        },
+        partModel: {
+            type: String,
+            enum: ['Part', 'JobWorkPart'],
+            default: 'Part',
+        },
         productId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Product',
+            refPath: 'productModel',
         },
         partId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Part',
+            refPath: 'partModel',
         },
         plannedQty: {
             type: Number,

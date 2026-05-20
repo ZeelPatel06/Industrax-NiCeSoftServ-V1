@@ -2,17 +2,12 @@ import { useState, useEffect } from 'react';
 import ErrorMessage from '../components/ErrorMessage';
 import orderService from '../services/orderService';
 import productService from '../services/productService';
-import jobWorkService from '../services/jobWorkService';
-import clientService from '../services/clientService';
 import invoiceService from '../services/invoiceService';
-import materialService from '../services/materialService';
-import partService from '../services/partService';
-import bomService from '../services/bomService';
+
 import { ShoppingCart, Edit, Plus, Trash2, Search, Package, User, IndianRupee, Calendar, FileText, ChevronRight, X, Clock, CheckCircle2, Edit2, Briefcase, Download, RefreshCw } from 'lucide-react';
 
 const Orders = () => {
     // Shared State
-    const [activeTab, setActiveTab] = useState('Standard'); // 'Standard' or 'JobWork'
     const [searchTerm, setSearchTerm] = useState('');
     const [error, setError] = useState('');
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -30,17 +25,8 @@ const Orders = () => {
     });
     const [selectedProduct, setSelectedProduct] = useState('');
     const [selectedQty, setSelectedQty] = useState(1);
-
-    // Job Work Orders State
-    const [jobWorkOrders, setJobWorkOrders] = useState([]);
-    const [clients, setClients] = useState([]);
-    const [masterMaterials, setMasterMaterials] = useState([]);
-    const [masterParts, setMasterParts] = useState([]);
-    const [showJobModal, setShowJobModal] = useState(false);
-    const [jobEditMode, setJobEditMode] = useState(false);
     const [standardEditMode, setStandardEditMode] = useState(false);
     const [standardCurrentId, setStandardCurrentId] = useState(null);
-    const [currentJobId, setCurrentJobId] = useState(null);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [invoiceOrder, setInvoiceOrder] = useState(null);
     const [invoiceConfig, setInvoiceConfig] = useState({
@@ -49,49 +35,15 @@ const Orders = () => {
         extraCosts: [], // { description: '', amount: 0 }
         notes: ''
     });
-    const [jobFormData, setJobFormData] = useState({
-        customerName: '',
-        clientName: '',
-        clientId: '',
-        orderTitle: '',
-        isClientMaterial: true,
-        deadline: '',
-        jobType: '',
-        totalAmount: 0,
-        materials: [],
-        materialName: '',
-        materialQuantity: 1,
-        unit: 'pcs',
-        outputProduct: '',
-        outputPart: ''
-    });
-
-    const [allBoms, setAllBoms] = useState([]);
-    const [currentMaterial, setCurrentMaterial] = useState({ materialName: '', quantity: 1, unit: 'pcs' });
 
     const fetchData = async () => {
         try {
-            if (activeTab === 'Standard') {
-                const [ordersData, productsData] = await Promise.all([
-                    orderService.getAll().catch(() => []),
-                    productService.getAll().catch(() => [])
-                ]);
-                setOrders(ordersData || []);
-                setProducts((productsData || []).filter(p => p.isActive));
-            } else {
-                const [jwData, clientsData, matsData, partsData, bomsData] = await Promise.all([
-                    jobWorkService.getAll().catch(() => []),
-                    clientService.getAll().catch(() => []),
-                    materialService.getAll().catch(() => []),
-                    partService.getAll().catch(() => []),
-                    bomService.getAll().catch(() => [])
-                ]);
-                setJobWorkOrders(jwData || []);
-                setClients(clientsData || []);
-                setMasterMaterials(matsData || []);
-                setMasterParts(partsData || []);
-                setAllBoms(bomsData || []);
-            }
+            const [ordersData, productsData] = await Promise.all([
+                orderService.getAll().catch(() => []),
+                productService.getAll().catch(() => [])
+            ]);
+            setOrders(ordersData || []);
+            setProducts((productsData || []).filter(p => p.isActive));
         } catch (error) {
             console.error('Fetch error:', error);
         }
@@ -99,7 +51,7 @@ const Orders = () => {
 
     useEffect(() => {
         fetchData();
-    }, [activeTab]);
+    }, []);
 
     // --- Standard Order Handlers ---
     const handleStatusChange = async (orderId, newStatus) => {
@@ -192,127 +144,7 @@ const Orders = () => {
         setShowStandardModal(true);
     };
 
-    // --- Job Work Handlers ---
-    const handleJobInputChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        const val = type === 'checkbox' ? checked : value;
-        setJobFormData(prev => ({
-            ...prev,
-            [name]: val,
-            ...(name === 'isClientMaterial' && val === true ? { materialName: '' } : {})
-        }));
-    };
 
-    const submitJobHandler = async (e) => {
-        e.preventDefault();
-        try {
-            let finalClientId = jobFormData.clientId;
-            if (!finalClientId && jobFormData.clientName) {
-                const newClient = await clientService.create({ name: jobFormData.clientName });
-                finalClientId = newClient._id;
-            }
-            if (!finalClientId) return setError("Please select or enter a client name");
-
-            const orderPayload = {
-                clientId: finalClientId,
-                orderTitle: jobFormData.orderTitle,
-                materials: jobFormData.materials.length > 0 ? jobFormData.materials : [{ 
-                    materialName: jobFormData.materialName, 
-                    quantity: Number(jobFormData.materialQuantity) || 0, 
-                    unit: jobFormData.unit 
-                }],
-                jobType: jobFormData.jobType,
-                totalAmount: Number(jobFormData.totalAmount),
-                isClientMaterial: jobFormData.isClientMaterial,
-                deadline: jobFormData.deadline || undefined,
-                outputProduct: jobFormData.outputProduct || undefined,
-                outputPart: jobFormData.outputPart || undefined
-            };
-
-            if (jobEditMode) {
-                await jobWorkService.update(currentJobId, orderPayload);
-            } else {
-                await jobWorkService.create(orderPayload);
-            }
-            setShowJobModal(false);
-            setJobEditMode(false);
-            fetchData();
-        } catch (error) {
-            setError(error.response?.data?.message || "Failed to save job order");
-        }
-    };
-
-    const handleSyncToCatalog = async (id) => {
-        try {
-            const res = await jobWorkService.syncCatalog(id);
-            alert(res.message);
-            fetchData();
-        } catch (error) {
-            setError(error.response?.data?.message || 'Failed to sync with master catalog');
-        }
-    };
-
-    const handleImportBOM = async (targetId) => {
-        if (!targetId) return;
-        try {
-            const bomItems = await bomService.getByProduct(targetId);
-            if (bomItems.length === 0) {
-                alert("No BOM items found for this selection.");
-                return;
-            }
-
-            const newMaterials = bomItems.map(item => ({
-                materialName: item.materialId?.name || item.partId?.name || 'Unknown',
-                quantity: item.qtyPerUnit,
-                unit: item.unit || 'pcs'
-            }));
-
-            setJobFormData(prev => ({
-                ...prev,
-                materials: [...prev.materials, ...newMaterials]
-            }));
-        } catch (error) {
-            console.error(error);
-            setError('Failed to import BOM items');
-        }
-    };
-
-    const handleJobEdit = (order) => {
-        setJobEditMode(true);
-        setCurrentJobId(order._id);
-        const savedMaterials = order.materials && order.materials.length > 0 
-            ? order.materials 
-            : (order.materialName ? [{ materialName: order.materialName, quantity: order.materialQuantity, unit: order.unit || 'pcs' }] : []);
-            
-        setJobFormData({
-            clientId: order.clientId?._id || order.clientId,
-            clientName: order.clientId?.name || '',
-            orderTitle: order.orderTitle || '',
-            materials: savedMaterials,
-            materialName: '',
-            materialQuantity: '',
-            unit: 'pcs',
-            jobType: order.jobType || '',
-            totalAmount: order.totalAmount || '',
-            isClientMaterial: order.isClientMaterial,
-            deadline: order.deadline ? new Date(order.deadline).toISOString().split('T')[0] : '',
-            outputProduct: order.outputProduct?._id || order.outputProduct || '',
-            outputPart: order.outputPart?._id || order.outputPart || '',
-        });
-        setCurrentMaterial({ materialName: '', quantity: 1, unit: 'pcs' });
-        setShowJobModal(true);
-    };
-
-    const handleJobDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this job order?')) {
-            try {
-                await jobWorkService.delete(id);
-                fetchData();
-            } catch (error) {
-                setError('Failed to delete job order');
-            }
-        }
-    };
 
     const openInvoiceModal = (order) => {
         setInvoiceOrder(order);
@@ -330,41 +162,25 @@ const Orders = () => {
             const invoiceNumber = 'INV-' + Date.now();
             const extraTotal = invoiceConfig.extraCosts.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
             let subTotal = (invoiceOrder.totalAmount || (invoiceOrder.items ? invoiceOrder.items.reduce((acc, item) => acc + (item.price * item.quantity), 0) : 0)) + extraTotal;
-            let totalAmount = subTotal;
+            subTotal = Math.round((subTotal + Number.EPSILON) * 10000) / 10000;
             let cgst = 0, sgst = 0, igst = 0;
 
             if (invoiceConfig.gstType === 'intra-state') {
-                cgst = (subTotal * (invoiceConfig.gstRate / 2)) / 100;
-                sgst = (subTotal * (invoiceConfig.gstRate / 2)) / 100;
-                totalAmount = subTotal + cgst + sgst;
+                cgst = Math.round(((subTotal * (invoiceConfig.gstRate / 2)) / 100 + Number.EPSILON) * 10000) / 10000;
+                sgst = Math.round(((subTotal * (invoiceConfig.gstRate / 2)) / 100 + Number.EPSILON) * 10000) / 10000;
             } else if (invoiceConfig.gstType === 'inter-state') {
-                igst = (subTotal * invoiceConfig.gstRate) / 100;
-                totalAmount = subTotal + igst;
+                igst = Math.round(((subTotal * invoiceConfig.gstRate) / 100 + Number.EPSILON) * 10000) / 10000;
             }
+            const totalAmount = Math.round((subTotal + cgst + sgst + igst + Number.EPSILON) * 10000) / 10000;
 
             await invoiceService.create({
                 orderId: invoiceOrder._id,
-                clientId: activeTab === 'Standard' ? undefined : (invoiceOrder.clientId?._id || invoiceOrder.clientId),
-                customerName: activeTab === 'Standard' ? invoiceOrder.customerName : (invoiceOrder.clientId?.name || ''),
-                invoiceNumber,
-                subTotal,
-                totalAmount,
-                gstType: invoiceConfig.gstType,
-                gstRate: invoiceConfig.gstRate,
-                cgst,
-                sgst,
-                igst,
-                orderModel: activeTab === 'Standard' ? 'Order' : 'JobWorkOrder',
+                orderModel: 'Order',
                 items: (invoiceOrder.items || []).map(i => ({
                     name: i.productId?.name || i.name || 'Item',
                     quantity: i.quantity || 0,
                     price: i.price || 0,
                     total: (i.price || 0) * (i.quantity || 0)
-                })),
-                materials: (invoiceOrder.materials || []).map(m => ({
-                    materialName: m.materialName || 'Material',
-                    quantity: m.quantity || 0,
-                    unit: m.unit || 'units'
                 })),
                 extraCosts: invoiceConfig.extraCosts,
                 notes: invoiceConfig.notes
@@ -383,20 +199,6 @@ const Orders = () => {
         (order.orderId || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const filteredJobOrders = jobWorkOrders.filter(order => {
-        const s = searchTerm.toLowerCase();
-        const clientMatch = (order.clientId?.name || '').toLowerCase().includes(s);
-        const titleMatch = (order.orderTitle || '').toLowerCase().includes(s);
-        const typeMatch = (order.jobType || '').toLowerCase().includes(s);
-        const legacyMatMatch = (order.materialName || '').toLowerCase().includes(s);
-        
-        // Search in materials array
-        const arrayMatMatch = order.materials?.some(m => 
-            (m.materialName || '').toLowerCase().includes(s)
-        );
-
-        return clientMatch || titleMatch || typeMatch || legacyMatMatch || arrayMatMatch;
-    });
 
     const statusColors = {
         'Draft': 'badge-warning',
@@ -417,7 +219,7 @@ const Orders = () => {
                     <div className="search-container" style={{ position: 'relative' }}>
                         <input
                             type="text"
-                            placeholder={`Search ${activeTab === 'Standard' ? 'orders' : 'job orders'}...`}
+                            placeholder="Search orders..."
                             className="form-control"
                             style={{ paddingLeft: '40px' }}
                             value={searchTerm}
@@ -427,43 +229,18 @@ const Orders = () => {
                     </div>
                     {(!['Operator', 'Worker', 'Helper', 'Labour'].includes(userInfo?.role)) && (
                         <button className="btn btn-primary" onClick={() => {
-                            if (activeTab === 'Standard') {
                                 setStandardEditMode(false);
                                 setStandardCurrentId(null);
                                 setNewOrder({ customerName: '', deliveryDate: '', items: [], status: 'Draft' });
                                 setShowStandardModal(true);
-                            } else {
-                                setJobEditMode(false);
-                                setJobFormData({ clientId: '', clientName: '', orderTitle: '', materials: [], materialName: '', materialQuantity: '', unit: 'pcs', jobType: '', totalAmount: '', isClientMaterial: true, deadline: '', outputProduct: '', outputPart: '' });
-                                setCurrentMaterial({ materialName: '', quantity: 1, unit: 'pcs' });
-                                setShowJobModal(true);
-                            }
                         }}>
-                            <Plus size={18} style={{ marginRight: '8px' }} /> New {activeTab === 'Standard' ? 'Order' : 'Job'}
+                            <Plus size={18} style={{ marginRight: '8px' }} /> New Order
                         </button>
                     )}
                 </div>
             </div>
 
-            <div className="tabs-container" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-                <button 
-                    className={`tab-btn ${activeTab === 'Standard' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('Standard')}
-                    style={{ padding: '0.5rem 1rem', border: 'none', background: 'none', color: activeTab === 'Standard' ? 'var(--primary-color)' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: activeTab === 'Standard' ? '2px solid var(--primary-color)' : 'none', fontWeight: 600 }}
-                >
-                    <ShoppingCart size={16} style={{ marginRight: '8px' }} /> Standard Orders
-                </button>
-                <button 
-                    className={`tab-btn ${activeTab === 'JobWork' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('JobWork')}
-                    style={{ padding: '0.5rem 1rem', border: 'none', background: 'none', color: activeTab === 'JobWork' ? 'var(--primary-color)' : 'var(--text-secondary)', cursor: 'pointer', borderBottom: activeTab === 'JobWork' ? '2px solid var(--primary-color)' : 'none', fontWeight: 600 }}
-                    title="Work for clients using their material or custom tasks"
-                >
-                    <Briefcase size={16} style={{ marginRight: '8px' }} /> Custom Job Work
-                </button>
-            </div>
 
-            {activeTab === 'Standard' ? (
                 <div className="glass-card table-container">
                     <table className="glass-table">
                         <thead>
@@ -534,92 +311,6 @@ const Orders = () => {
                         </tbody>
                     </table>
                 </div>
-            ) : (
-                <div className="glass-card table-container">
-                    <table className="glass-table">
-                        <thead>
-                            <tr>
-                                <th>Client & Title</th>
-                                <th>Process Details</th>
-                                <th>Quantity</th>
-                                <th>Deadline</th>
-                                <th>Total</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredJobOrders.map(order => (
-                                <tr key={order._id}>
-                                    <td>
-                                        <div style={{ fontWeight: 600 }}>{order.clientId?.name || 'Unknown'}</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{order.orderTitle || 'No Title'}</div>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <Package size={14} className="text-primary" />
-                                            <span>
-                                                {order.jobType}: {order.materials?.length > 0 ? order.materials.map(m => m.materialName).join(', ') : order.materialName}
-                                            </span>
-                                        </div>
-                                        {order.isClientMaterial && <span className="badge badge-info" style={{ marginTop: '5px', fontSize: '10px', display: 'block', width: 'fit-content' }}>Client Material</span>}
-                                    </td>
-                                    <td>
-                                        {order.materials?.length > 0 
-                                            ? order.materials.reduce((acc, m) => acc + m.quantity, 0) + ' items'
-                                            : `${order.materialQuantity} ${order.unit}`
-                                        }
-                                    </td>
-                                    <td>
-                                        <div style={{ fontSize: '0.85rem', color: new Date(order.deadline) < new Date() && order.status !== 'Completed' ? 'var(--danger-color)' : 'inherit' }}>
-                                            {order.deadline ? new Date(order.deadline).toLocaleDateString() : 'No Deadline'}
-                                        </div>
-                                    </td>
-                                    <td style={{ fontWeight: 700, color: 'var(--accent-color)' }}>₹{(order.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-                                    <td>
-                                        <span className={`badge ${order.status === 'Completed' ? 'badge-success' : 'badge-warning'}`}>
-                                            {order.status === 'Pending' ? <Clock size={12} style={{ marginRight: '5px' }} /> : <CheckCircle2 size={12} style={{ marginRight: '5px' }} />}
-                                            {order.status}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            <button 
-                                                className="btn" 
-                                                style={{ 
-                                                    padding: '6px 12px', 
-                                                    fontSize: '0.8rem', 
-                                                    background: (order.outputProduct || order.outputPart) ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)',
-                                                    color: (order.outputProduct || order.outputPart) ? 'white' : 'var(--text-secondary)',
-                                                    cursor: (order.outputProduct || order.outputPart) ? 'pointer' : 'not-allowed',
-                                                    border: '1px solid ' + ((order.outputProduct || order.outputPart) ? 'transparent' : 'rgba(255,255,255,0.1)')
-                                                }} 
-                                                onClick={() => (order.outputProduct || order.outputPart) && handleSyncToCatalog(order._id)}
-                                                title={(order.outputProduct || order.outputPart) ? 'Sync rate to master catalog' : 'Link to a product/part first to sync'}
-                                            >
-                                                <RefreshCw size={14} style={{ marginRight: '5px' }} className={(order.outputProduct || order.outputPart) ? '' : 'opacity-50'} /> 
-                                                {(order.outputProduct || order.outputPart) ? 'Sync to Master' : 'Link Required'}
-                                            </button>
-                                            <button className="btn btn-accent" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => openInvoiceModal(order)}>
-                                                <FileText size={14} style={{ marginRight: '5px' }} /> Invoice
-                                            </button>
-                                            <button className="btn" style={{ padding: '6px', color: 'var(--primary-color)', background: 'rgba(99, 102, 241, 0.1)' }} onClick={() => handleJobEdit(order)}>
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button className="btn" style={{ padding: '6px', color: 'var(--danger-color)', background: 'rgba(239, 68, 68, 0.1)' }} onClick={() => handleJobDelete(order._id)}>
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {filteredJobOrders.length === 0 && (
-                                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>No job orders found.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            )}
 
             {/* Modals */}
             {showStandardModal && (
@@ -699,209 +390,7 @@ const Orders = () => {
                 </div>
             )}
 
-            {showJobModal && (
-                <div className="modal-overlay">
-                    <div className="glass-card modal-lg">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <h2>{jobEditMode ? 'Edit Job Order' : 'Create Job Order'}</h2>
-                            <button className="btn" onClick={() => setShowJobModal(false)}><X size={20} /></button>
-                        </div>
-                        <form onSubmit={submitJobHandler}>
-                            <div style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' }}>
-                                <input type="checkbox" name="isClientMaterial" checked={jobFormData.isClientMaterial} onChange={handleJobInputChange} id="checkCM" />
-                                <label htmlFor="checkCM" style={{ fontSize: '0.9rem', cursor: 'pointer' }}>Client Provided Material</label>
-                            </div>
-                            <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                <div className="form-group">
-                                    <label className="form-label">Client Selection</label>
-                                    <select name="clientId" value={jobFormData.clientId} onChange={handleJobInputChange} className="form-control">
-                                        <option value="">-- New Client --</option>
-                                        {clients.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
-                                    </select>
-                                    {!jobFormData.clientId && <input type="text" name="clientName" placeholder="Client Name" value={jobFormData.clientName} onChange={handleJobInputChange} className="form-control" style={{ marginTop: '10px' }} required />}
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Order Title / PO</label>
-                                    <input type="text" name="orderTitle" value={jobFormData.orderTitle} onChange={handleJobInputChange} className="form-control" placeholder="e.g. 500 units of Shaft Polishing" />
-                                </div>
-                            </div>
 
-                            {!hasModule('materials') && !hasModule('parts') && (
-                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--primary-color)' }}>Quick Job Details</h4>
-                                    <div style={{ display: 'flex', gap: '1rem' }}>
-                                        <div style={{ flex: 2 }}>
-                                            <label className="form-label">Item / Material Description</label>
-                                            <input type="text" name="materialName" value={jobFormData.materialName} onChange={handleJobInputChange} className="form-control" placeholder="What are you working on?" />
-                                        </div>
-                                        <div style={{ width: '100px' }}>
-                                            <label className="form-label">Qty</label>
-                                            <input type="number" step="0.0001" min="0.0001" name="materialQuantity" value={jobFormData.materialQuantity} onChange={handleJobInputChange} className="form-control" />
-                                        </div>
-                                        <div style={{ width: '100px' }}>
-                                            <label className="form-label">Unit</label>
-                                            <select name="unit" value={jobFormData.unit} onChange={handleJobInputChange} className="form-control">
-                                                <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {(hasModule('materials') || hasModule('parts')) && (
-                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                        <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--primary-color)' }}>Materials / Parts Tracker</h4>
-                                        {hasModule('bom') && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Quick Import:</label>
-                                                <select 
-                                                    className="form-control" 
-                                                    style={{ width: '200px', fontSize: '0.85rem', padding: '4px 8px', height: 'auto' }}
-                                                    value=""
-                                                    onChange={e => handleImportBOM(e.target.value)}
-                                                >
-                                                    <option value="">-- Import from BOM --</option>
-                                                    <optgroup label="Products">
-                                                        {products.map(p => {
-                                                            const hasBom = allBoms.some(b => b.productId === p._id || b.productId?._id === p._id);
-                                                            return hasBom ? <option key={p._id} value={p._id}>{p.name}</option> : null;
-                                                        })}
-                                                    </optgroup>
-                                                    <optgroup label="Sub-Assembly Parts">
-                                                        {masterParts.map(p => {
-                                                            const hasBom = allBoms.some(b => b.parentPartId === p._id || b.parentPartId?._id === p._id);
-                                                            return hasBom ? <option key={p._id} value={p._id}>{p.name}</option> : null;
-                                                        })}
-                                                    </optgroup>
-                                                </select>
-                                            </div>
-                                        )}
-                                    </div>
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1rem' }}>
-                                    <div style={{ flex: 2 }}>
-                                        <label className="form-label">Select Material/Part</label>
-                                        <select 
-                                            className="form-control"
-                                            value={masterMaterials.find(m => m.name === currentMaterial.materialName)?._id ? `material:${masterMaterials.find(m => m.name === currentMaterial.materialName)._id}` : masterParts.find(p => p.name === currentMaterial.materialName)?._id ? `part:${masterParts.find(p => p.name === currentMaterial.materialName)._id}` : ''}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                if (!val) {
-                                                    setCurrentMaterial({ ...currentMaterial, materialName: '', unit: 'pcs' });
-                                                    return;
-                                                }
-                                                const [type, id] = val.split(':');
-                                                const item = type === 'material' ? masterMaterials.find(m => m._id === id) : masterParts.find(p => p._id === id);
-                                                if (item) {
-                                                    setCurrentMaterial({ ...currentMaterial, materialName: item.name, unit: item.unit });
-                                                }
-                                            }}
-                                        >
-                                            <option value="">-- Choose from Inventory --</option>
-                                            <optgroup label="Materials">
-                                                {masterMaterials.map(m => <option key={m._id} value={`material:${m._id}`}>{m.name} ({m.materialCode})</option>)}
-                                            </optgroup>
-                                            <optgroup label="Sub-Assembly Parts">
-                                                {masterParts.map(p => <option key={p._id} value={`part:${p._id}`}>{p.name} ({p.partCode})</option>)}
-                                            </optgroup>
-                                        </select>
-                                    </div>
-                                    <div style={{ width: '80px' }}>
-                                        <label className="form-label">Qty</label>
-                                        <input type="number" step="0.0001" min="0.0001" value={currentMaterial.quantity} onChange={e => setCurrentMaterial({...currentMaterial, quantity: Number(e.target.value)})} className="form-control" />
-                                    </div>
-                                    <div style={{ width: '100px' }}>
-                                        <label className="form-label">Unit</label>
-                                        <select value={currentMaterial.unit} onChange={e => setCurrentMaterial({...currentMaterial, unit: e.target.value})} className="form-control">
-                                            <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" className="btn btn-accent" onClick={() => {
-                                        if(currentMaterial.materialName){
-                                            setJobFormData({...jobFormData, materials: [...jobFormData.materials, currentMaterial]});
-                                            setCurrentMaterial({ materialName: '', quantity: 1, unit: 'pcs' });
-                                        }
-                                    }}>Add</button>
-                                </div>
-                                {jobFormData.materials.length > 0 && (
-                                    <table className="glass-table" style={{ fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}>
-                                        <tbody>
-                                            {jobFormData.materials.map((it, idx) => (
-                                                <tr key={idx}>
-                                                    <td>{it.materialName}</td>
-                                                    <td>{it.quantity} {it.unit}</td>
-                                                    <td style={{ textAlign: 'right' }}>
-                                                        <button type="button" className="btn" style={{ padding: '2px', color: 'var(--danger-color)' }} onClick={() => {
-                                                            const newMats = [...jobFormData.materials];
-                                                            newMats.splice(idx, 1);
-                                                            setJobFormData({...jobFormData, materials: newMats});
-                                                        }}><X size={14}/></button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
-                            )}
-
-                            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--primary-color)' }}>Catalog Integration (Output)</h4>
-                                <div className="form-group">
-                                    <label className="form-label">Link to Master Catalog (to sync price/qty later)</label>
-                                    <select 
-                                        className="form-control"
-                                        value={jobFormData.outputProduct ? `product:${jobFormData.outputProduct}` : jobFormData.outputPart ? `part:${jobFormData.outputPart}` : ''}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            if (!val) {
-                                                setJobFormData({ ...jobFormData, outputProduct: '', outputPart: '' });
-                                                return;
-                                            }
-                                            const [type, id] = val.split(':');
-                                            setJobFormData({ 
-                                                ...jobFormData, 
-                                                outputProduct: type === 'product' ? id : '', 
-                                                outputPart: type === 'part' ? id : '' 
-                                            });
-                                        }}
-                                    >
-                                        <option value="">-- No Catalog Link --</option>
-                                        <optgroup label="Products">
-                                            {products.map(p => <option key={p._id} value={`product:${p._id}`}>{p.name} ({p.productCode})</option>)}
-                                        </optgroup>
-                                        <optgroup label="Finished Parts">
-                                            {masterParts.map(p => <option key={p._id} value={`part:${p._id}`}>{p.name} ({p.partCode})</option>)}
-                                        </optgroup>
-                                    </select>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                                        Link this job to an existing Product or Part to enable "Sync to Master Catalog" functionality.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                <div className="form-group">
-                                    <label className="form-label">Job Process</label>
-                                    <input type="text" name="jobType" value={jobFormData.jobType} onChange={handleJobInputChange} className="form-control" required />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Total Cost (₹)</label>
-                                    <input type="number" step="0.0001" min="0" name="totalAmount" value={jobFormData.totalAmount} onChange={handleJobInputChange} className="form-control" required />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Deadline</label>
-                                <input type="date" name="deadline" value={jobFormData.deadline} onChange={handleJobInputChange} className="form-control" />
-                            </div>
-                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                                <button type="button" className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.05)' }} onClick={() => setShowJobModal(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>Confirm</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
 
             {/* Invoice Generation Modal */}
             {showInvoiceModal && invoiceOrder && (

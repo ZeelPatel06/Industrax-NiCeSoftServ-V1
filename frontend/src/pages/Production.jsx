@@ -18,6 +18,8 @@ const Production = () => {
     const [parts, setParts] = useState([]);
     const [machines, setMachines] = useState([]);
     const [employees, setEmployees] = useState([]);
+    const [jobWorkProducts, setJobWorkProducts] = useState([]);
+    const [jobWorkParts, setJobWorkParts] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [updateModal, setUpdateModal] = useState({ show: false, jobId: null, currentJob: null, qty: 0 });
     const [printingJob, setPrintingJob] = useState(null);
@@ -25,7 +27,8 @@ const Production = () => {
 
     // For New Job
     const initialJobState = {
-        jobId: '', orderId: '', productId: '', partId: '', plannedQty: 1, endDate: '', priority: 'Normal', machineId: '', operatorId: ''
+        jobId: '', orderId: '', productId: '', partId: '', plannedQty: 1, endDate: '', priority: 'Normal', machineId: '', operatorId: '',
+        productModel: 'Product', partModel: 'Part', orderModel: 'Order'
     };
     const [newJob, setNewJob] = useState(initialJobState);
     const [isEdit, setIsEdit] = useState(false);
@@ -39,7 +42,7 @@ const Production = () => {
     const fetchData = async () => {
         try {
             const config = { withCredentials: true };
-            const [jobsData, ordersData, jobWorkData, invData, partsData, productsData, machinesData, employeesData] = await Promise.all([
+            const [jobsData, ordersData, jobWorkData, invData, partsData, productsData, machinesData, employeesData, jwProductsData, jwPartsData] = await Promise.all([
                 productionService.getAll().catch(() => []), 
                 orderService.getAll().catch(() => []),
                 jobWorkService.getAll().catch(() => []),
@@ -47,7 +50,9 @@ const Production = () => {
                 partService.getAll().catch(() => []),
                 productService.getAll().catch(() => []),
                 machineService.getMachines().catch(() => []),
-                employeeService.getAll().catch(() => [])
+                employeeService.getAll().catch(() => []),
+                jobWorkService.getProducts().catch(() => []),
+                jobWorkService.getParts().catch(() => [])
             ]);
 
             // Show all jobs to all roles in the workspace
@@ -56,6 +61,8 @@ const Production = () => {
             setProducts(productsData);
             setMachines(machinesData);
             setEmployees(employeesData);
+            setJobWorkProducts(jwProductsData || []);
+            setJobWorkParts(jwPartsData || []);
             
             // Combine orders and mark them
             const combinedOrders = [
@@ -74,9 +81,15 @@ const Production = () => {
         }
     };
 
-    const fetchBOM = async (targetId, isPart = false) => {
+    const fetchBOM = async (targetId, isPart = false, isJobWork = false) => {
         try {
-            const data = await bomService.getByProduct(targetId).catch(() => []);
+            let data;
+            if (isJobWork) {
+                const params = isPart ? { parentPartId: targetId } : { productId: targetId };
+                data = await jobWorkService.getBOMItems(params).catch(() => []);
+            } else {
+                data = await bomService.getByProduct(targetId).catch(() => []);
+            }
             setBomRequirements(data || []);
         } catch (error) {
             console.error('BOM fetch error', error);
@@ -109,11 +122,20 @@ const Production = () => {
             return;
         }
 
+        const payload = {
+            ...newJob,
+            productId: newJob.productId?._id || newJob.productId || undefined,
+            partId: newJob.partId?._id || newJob.partId || undefined,
+            orderId: newJob.orderId?._id || newJob.orderId || undefined,
+            machineId: newJob.machineId?._id || newJob.machineId || undefined,
+            operatorId: newJob.operatorId?._id || newJob.operatorId || undefined,
+        };
+
         try {
             if (isEdit) {
-                await productionService.updateJob(editJobId, newJob);
+                await productionService.updateJob(editJobId, payload);
             } else {
-                await productionService.create(newJob);
+                await productionService.create(payload);
             }
             setShowModal(false);
             setNewJob(initialJobState);
@@ -160,8 +182,11 @@ const Production = () => {
         setNewJob({
             jobId: job.jobId || '',
             orderId: job.orderId?._id || job.orderId || '',
+            orderModel: job.orderModel || 'Order',
             productId: job.productId?._id || job.productId || '',
+            productModel: job.productModel || 'Product',
             partId: job.partId?._id || job.partId || '',
+            partModel: job.partModel || 'Part',
             plannedQty: job.plannedQty || 1,
             endDate: job.endDate ? job.endDate.split('T')[0] : '',
             priority: job.priority || 'Normal',
@@ -170,10 +195,12 @@ const Production = () => {
         });
         
         const targetId = job.productId?._id || job.productId || job.partId?._id || job.partId;
+        const isPart = !!(job.partId?._id || job.partId);
+        const isJobWork = job.productModel === 'JobWorkProduct' || job.partModel === 'JobWorkPart';
         if (targetId) {
-            fetchBOM(targetId);
+            fetchBOM(targetId, isPart, isJobWork);
         } else if (job.orderId) {
-            fetchBOM(job.orderId?._id || job.orderId); // For JobWorkOrder
+            fetchBOM(job.orderId?._id || job.orderId, isPart, job.orderModel === 'JobWorkOrder'); // For JobWorkOrder
         } else {
             setBomRequirements([]);
         }
@@ -204,15 +231,18 @@ const Production = () => {
                 setNewJob({
                     ...newJob,
                     orderId: ordId,
+                    orderModel: 'JobWorkOrder',
                     productId: outputProdId,
+                    productModel: outputProdId ? 'JobWorkProduct' : 'Product',
                     partId: outputPartId,
+                    partModel: outputPartId ? 'JobWorkPart' : 'Part',
                     plannedQty: order.materialQuantity || 1,
                     jobType: order.jobType
                 });
                 
                 const targetId = outputProdId || outputPartId;
                 if (targetId) {
-                    fetchBOM(targetId);
+                    fetchBOM(targetId, !!outputPartId, true);
                 } else {
                     setBomRequirements([]);
                 }
@@ -223,15 +253,18 @@ const Production = () => {
                 setNewJob({
                     ...newJob,
                     orderId: ordId,
+                    orderModel: 'Order',
                     productId: prodId,
+                    productModel: 'Product',
                     partId: '',
+                    partModel: 'Part',
                     plannedQty: firstItem?.quantity || 1
                 });
                 
-                if (prodId) fetchBOM(prodId);
+                if (prodId) fetchBOM(prodId, false, false);
             }
         } else {
-            setNewJob({ ...newJob, orderId: ordId, productId: '', partId: '' });
+            setNewJob({ ...newJob, orderId: ordId, orderModel: 'Order', productId: '', productModel: 'Product', partId: '', partModel: 'Part' });
             setBomRequirements([]);
         }
     };
@@ -239,16 +272,19 @@ const Production = () => {
     const handleItemSelect = (e) => {
         const val = e.target.value;
         if (!val) {
-            setNewJob({ ...newJob, productId: '', partId: '' });
+            setNewJob({ ...newJob, productId: '', productModel: 'Product', partId: '', partModel: 'Part' });
             setBomRequirements([]);
             return;
         }
 
         const [type, id] = val.split(':');
+        const isJobWork = type === 'jwproduct' || type === 'jwpart';
         const updatedJob = {
             ...newJob,
-            productId: type === 'product' ? id : '',
-            partId: type === 'part' ? id : ''
+            productId: (type === 'product' || type === 'jwproduct') ? id : '',
+            productModel: type === 'jwproduct' ? 'JobWorkProduct' : 'Product',
+            partId: (type === 'part' || type === 'jwpart') ? id : '',
+            partModel: type === 'jwpart' ? 'JobWorkPart' : 'Part'
         };
 
         // Automate quantity if an order is selected
@@ -261,7 +297,6 @@ const Production = () => {
                         updatedJob.plannedQty = item.quantity;
                     }
                 } else if (order._type === 'JobWorkOrder') {
-                    // Check if selected item matches the JW output
                     const outputId = order.outputProduct?._id || order.outputProduct || order.outputPart?._id || order.outputPart;
                     if (outputId === id) {
                         updatedJob.plannedQty = order.materialQuantity || 1;
@@ -271,7 +306,7 @@ const Production = () => {
         }
 
         setNewJob(updatedJob);
-        fetchBOM(id);
+        fetchBOM(id, type === 'part' || type === 'jwpart', isJobWork);
     };
 
     const handlePrint = async (job) => {
@@ -625,15 +660,27 @@ const Production = () => {
                                 <label className="form-label">Item to Produce</label>
                                 <select 
                                     className="form-control" 
-                                    value={newJob.productId ? `product:${newJob.productId}` : (newJob.partId ? `part:${newJob.partId}` : '')}
+                                    value={
+                                        (newJob.productId?._id || newJob.productId)
+                                            ? (newJob.productModel === 'JobWorkProduct' ? `jwproduct:${newJob.productId?._id || newJob.productId}` : `product:${newJob.productId?._id || newJob.productId}`)
+                                            : (newJob.partId?._id || newJob.partId)
+                                                ? (newJob.partModel === 'JobWorkPart' ? `jwpart:${newJob.partId?._id || newJob.partId}` : `part:${newJob.partId?._id || newJob.partId}`)
+                                                : ''
+                                    }
                                     onChange={handleItemSelect}
                                 >
                                     <option value="">-- Manual Selection (Optional if Order selected) --</option>
-                                    <optgroup label="Finished Products">
+                                    <optgroup label="Finished Products (Standard)">
                                         {products.map(p => <option key={p._id} value={`product:${p._id}`}>{p.name} ({p.productCode})</option>)}
                                     </optgroup>
-                                    <optgroup label="Sub-Assembly Parts">
+                                    <optgroup label="Sub-Assembly Parts (Standard)">
                                         {parts.map(p => <option key={p._id} value={`part:${p._id}`}>{p.name} ({p.partCode})</option>)}
+                                    </optgroup>
+                                    <optgroup label="Job Work Products">
+                                        {jobWorkProducts.map(p => <option key={p._id} value={`jwproduct:${p._id}`}>{p.name} ({p.productCode})</option>)}
+                                    </optgroup>
+                                    <optgroup label="Job Work Parts">
+                                        {jobWorkParts.map(p => <option key={p._id} value={`jwpart:${p._id}`}>{p.name} ({p.partCode})</option>)}
                                     </optgroup>
                                 </select>
                             </div>

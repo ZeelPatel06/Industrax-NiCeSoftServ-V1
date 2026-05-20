@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import invoiceService from '../services/invoiceService';
+import uploadedDocumentService from '../services/uploadedDocumentService';
+import clientService from '../services/clientService';
 import apiClient from '../api/apiClient';
-import { FileText, Printer, Search, Download, Calendar, ArrowLeft, Building2, Trash2, CreditCard, CheckCircle, Clock, AlertCircle, X } from 'lucide-react';
+import { FileText, Printer, Search, Download, Calendar, ArrowLeft, Building2, Trash2, CreditCard, CheckCircle, Clock, AlertCircle, X, Upload, Plus } from 'lucide-react';
 import Loading from './Loading';
 
 const Invoices = () => {
@@ -13,6 +15,14 @@ const Invoices = () => {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentData, setPaymentData] = useState({ id: null, alreadyPaid: 0, newPayment: 0, totalAmount: 0, invoiceNumber: '' });
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+
+    // Manually uploaded PO & supplier bills state
+    const [activeTab, setActiveTab] = useState('generated');
+    const [uploadedDocs, setUploadedDocs] = useState([]);
+    const [showUploadModal, setShowUploadModal] = useState(false);
+    const [clients, setClients] = useState([]);
+    const [uploadForm, setUploadForm] = useState({ clientName: '', projectName: '', pdfFile: null, pdfFileName: '' });
+    const [uploadSearchTerm, setUploadSearchTerm] = useState('');
 
     const fetchProfile = async () => {
         try {
@@ -27,6 +37,25 @@ const Invoices = () => {
         fetchProfile();
     }, []);
 
+    const fetchUploadedDocs = async () => {
+        try {
+            const data = await uploadedDocumentService.getAll();
+            setUploadedDocs(data || []);
+        } catch (err) {
+            console.error('Failed to fetch documents', err);
+            setUploadedDocs([]);
+        }
+    };
+
+    const fetchClients = async () => {
+        try {
+            const data = await clientService.getAll();
+            setClients(data || []);
+        } catch (err) {
+            console.error('Failed to fetch clients', err);
+        }
+    };
+
     useEffect(() => {
         const fetchInvoices = async () => {
             try {
@@ -40,15 +69,52 @@ const Invoices = () => {
             }
         };
         fetchInvoices();
+        fetchUploadedDocs();
+        fetchClients();
     }, []);
 
     const fetchInvoicesProxy = async () => {
         try {
             const data = await invoiceService.getAll();
             setInvoices(data || []);
+            await fetchUploadedDocs();
         } catch (error) {
             console.error(error);
             setInvoices([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUploadSubmit = async (e) => {
+        e.preventDefault();
+        if (!uploadForm.clientName || !uploadForm.projectName || !uploadForm.pdfFile) {
+            alert('Please fill in all fields and select a PDF file.');
+            return;
+        }
+        try {
+            setLoading(true);
+            await uploadedDocumentService.upload(uploadForm.clientName, uploadForm.projectName, uploadForm.pdfFile, uploadForm.pdfFileName);
+            setUploadForm({ clientName: '', projectName: '', pdfFile: null, pdfFileName: '' });
+            setShowUploadModal(false);
+            await fetchUploadedDocs();
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.message || 'Failed to upload document');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteDoc = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this document?')) return;
+        try {
+            setLoading(true);
+            await uploadedDocumentService.delete(id);
+            await fetchUploadedDocs();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to delete document');
         } finally {
             setLoading(false);
         }
@@ -87,9 +153,46 @@ const Invoices = () => {
         }
     };
 
+    const handlePDFUpload = async (invoiceId, e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.type !== 'application/pdf') {
+            alert('Please upload a valid PDF document.');
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+            alert('File size must be less than 2MB.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64Data = reader.result;
+            try {
+                setLoading(true);
+                await invoiceService.uploadPDF(invoiceId, base64Data, file.name);
+                await fetchInvoicesProxy();
+            } catch (err) {
+                console.error('Failed to upload PDF', err);
+                alert(err.response?.data?.message || 'Failed to upload PDF');
+            } finally {
+                setLoading(false);
+            }
+        };
+    };
+
     const filteredInvoices = invoices.filter(inv => 
         inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         inv.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const filteredDocs = uploadedDocs.filter(doc => 
+        doc.clientName.toLowerCase().includes(uploadSearchTerm.toLowerCase()) ||
+        doc.projectName.toLowerCase().includes(uploadSearchTerm.toLowerCase()) ||
+        doc.pdfFileName.toLowerCase().includes(uploadSearchTerm.toLowerCase())
     );
 
     if (loading) return <Loading />;
@@ -280,117 +383,392 @@ const Invoices = () => {
                         This is an unofficial/dummy and commercial costing estimate and record generated via Industrax.
                     </div>
                 </div>
+
+                {/* PDF management section below printable invoice, outside the paper but visible on screen (no-print) */}
+                <div className="no-print glass-card" style={{ maxWidth: '800px', margin: '2rem auto 0 auto', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                    <div>
+                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'white' }}>Purchase Order Document</h4>
+                        <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            {selectedInvoice.pdfFile ? `Attached file: ${selectedInvoice.pdfFileName || 'Purchase_Order.pdf'}` : 'No Purchase Order file has been uploaded for this invoice yet.'}
+                        </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        {selectedInvoice.pdfFile && (
+                            <a 
+                                href={selectedInvoice.pdfFile} 
+                                download={selectedInvoice.pdfFileName || 'Purchase_Order.pdf'} 
+                                className="btn" 
+                                style={{ 
+                                    background: 'rgba(56, 189, 248, 0.15)', 
+                                    color: '#38bdf8', 
+                                    textDecoration: 'none', 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '6px', 
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                                    padding: '8px 16px',
+                                    fontSize: '0.9rem'
+                                }}
+                            >
+                                <Download size={16} /> Download PO
+                            </a>
+                        )}
+                        <>
+                            <input 
+                                type="file" 
+                                accept="application/pdf" 
+                                id={`pdf-upload-detail-${selectedInvoice._id}`} 
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+                                    if (file.type !== 'application/pdf') {
+                                        alert('Please upload a valid PDF document.');
+                                        return;
+                                    }
+                                    if (file.size > 2 * 1024 * 1024) {
+                                        alert('File size must be less than 2MB.');
+                                        return;
+                                    }
+                                    const reader = new FileReader();
+                                    reader.readAsDataURL(file);
+                                    reader.onload = async () => {
+                                        const base64Data = reader.result;
+                                        try {
+                                            setLoading(true);
+                                            const updated = await invoiceService.uploadPDF(selectedInvoice._id, base64Data, file.name);
+                                            setSelectedInvoice(updated);
+                                            await fetchInvoicesProxy();
+                                        } catch (err) {
+                                            console.error('Failed to upload PDF', err);
+                                            alert(err.response?.data?.message || 'Failed to upload PDF');
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    };
+                                }} 
+                                style={{ display: 'none' }} 
+                            />
+                            <label 
+                                htmlFor={`pdf-upload-detail-${selectedInvoice._id}`} 
+                                className="btn btn-primary" 
+                                style={{ 
+                                    cursor: 'pointer', 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '6px', 
+                                    borderRadius: '8px',
+                                    padding: '8px 16px',
+                                    fontSize: '0.9rem'
+                                }}
+                            >
+                                <Upload size={16} /> {selectedInvoice.pdfFile ? 'Replace PDF' : 'Upload PO PDF'}
+                            </label>
+                        </>
+                    </div>
+                </div>
             </div>
         );
     }
 
     return (
         <div className="animate-fade-in">
-            <div className="page-header">
-                <h1>Invoices</h1>
-                <div className="header-actions">
-                    <div className="search-container" style={{ position: 'relative' }}>
-                        <input
-                            type="text"
-                            placeholder="Search invoice or client..."
-                            className="form-control"
-                            style={{ paddingLeft: '40px' }}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-                    </div>
-                </div>
+            {/* Tab navigation */}
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }} className="no-print">
+                <button 
+                    onClick={() => setActiveTab('generated')}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        color: activeTab === 'generated' ? 'var(--primary-color)' : 'var(--text-secondary)',
+                        fontSize: '1.1rem',
+                        fontWeight: 600,
+                        padding: '0.5rem 1rem',
+                        cursor: 'pointer',
+                        borderBottom: activeTab === 'generated' ? '2px solid var(--primary-color)' : 'none',
+                        transition: 'all 0.3s ease'
+                    }}
+                >
+                    Cost Estimates & Invoices
+                </button>
+                <button 
+                    onClick={() => setActiveTab('uploaded')}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        color: activeTab === 'uploaded' ? 'var(--primary-color)' : 'var(--text-secondary)',
+                        fontSize: '1.1rem',
+                        fontWeight: 600,
+                        padding: '0.5rem 1rem',
+                        cursor: 'pointer',
+                        borderBottom: activeTab === 'uploaded' ? '2px solid var(--primary-color)' : 'none',
+                        transition: 'all 0.3s ease'
+                    }}
+                >
+                    Uploaded Client POs & Supplier Bills
+                </button>
             </div>
 
-            <div className="glass-card table-container">
-                <table className="glass-table">
-                    <thead>
-                        <tr>
-                            <th>Invoice Number</th>
-                            <th>Issued Date</th>
-                            <th>Customer Name</th>
-                            <th>Total Amount</th>
-                            <th>Paid</th>
-                            <th>Balance</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredInvoices.map(invoice => (
-                            <tr key={invoice._id}>
-                                <td style={{ padding: '15px 0' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <FileText size={16} className="text-primary" />
-                                        <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{invoice.invoiceNumber}</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Calendar size={14} className="text-secondary" />
-                                        {new Date(invoice.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Building2 size={14} className="text-accent" />
-                                        {invoice.clientId?.name || invoice.customerName || 'Unknown'}
-                                    </div>
-                                </td>
-                                 <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                                    ₹{(invoice.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                                </td>
-                                <td style={{ color: 'var(--success-color)', fontWeight: 600 }}>
-                                    ₹{(invoice.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                                </td>
-                                <td style={{ color: 'var(--danger-color)', fontWeight: 700 }}>
-                                    ₹{((invoice.totalAmount || 0) - (invoice.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                                </td>
-                                <td>
-                                    <span className={`badge ${
-                                        invoice.paymentStatus === 'Paid' ? 'badge-success' : 
-                                        invoice.paymentStatus === 'Partially Paid' ? 'badge-warning' : 
-                                        'badge-danger'
-                                    }`} style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'fit-content' }}>
-                                        {invoice.paymentStatus === 'Paid' ? <CheckCircle size={12} /> : 
-                                         invoice.paymentStatus === 'Partially Paid' ? <Clock size={12} /> : 
-                                         <AlertCircle size={12} />}
-                                        {invoice.paymentStatus || 'Unpaid'}
-                                    </span>
-                                </td>
-                                <td>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button className="btn" style={{ padding: '6px 12px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary-color)' }} onClick={() => setSelectedInvoice(invoice)}>
-                                            <Printer size={16} style={{ marginRight: '8px' }} /> View
-                                        </button>
-                                        <button className="btn" style={{ padding: '6px 12px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }} onClick={() => {
-                                            setPaymentData({ 
-                                                id: invoice._id, 
-                                                alreadyPaid: invoice.paidAmount || 0, 
-                                                newPayment: 0, 
-                                                totalAmount: invoice.totalAmount, 
-                                                invoiceNumber: invoice.invoiceNumber 
-                                            });
-                                            setShowPaymentModal(true);
-                                        }}>
-                                            <CreditCard size={16} style={{ marginRight: '8px' }} /> Paid
-                                        </button>
-                                        {userInfo?.role === 'Owner' && (
-                                            <button className="btn" style={{ padding: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }} onClick={() => handleDelete(invoice._id)} title="Delete Invoice">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                        {filteredInvoices.length === 0 && (
-                            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>No invoices found.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            {activeTab === 'generated' ? (
+                <>
+                    <div className="page-header">
+                        <h1>Invoices</h1>
+                        <div className="header-actions">
+                            <div className="search-container" style={{ position: 'relative' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Search invoice or client..."
+                                    className="form-control"
+                                    style={{ paddingLeft: '40px' }}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="glass-card table-container">
+                        <table className="glass-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice Number</th>
+                                    <th>Issued Date</th>
+                                    <th>Customer Name</th>
+                                    <th>Total Amount</th>
+                                    <th>Paid</th>
+                                    <th>Balance</th>
+                                    <th>Status</th>
+                                    <th>PO Document</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredInvoices.map(invoice => (
+                                    <tr key={invoice._id}>
+                                        <td style={{ padding: '15px 0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <FileText size={16} className="text-primary" />
+                                                <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{invoice.invoiceNumber}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Calendar size={14} className="text-secondary" />
+                                                {new Date(invoice.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Building2 size={14} className="text-accent" />
+                                                {invoice.clientId?.name || invoice.customerName || 'Unknown'}
+                                            </div>
+                                        </td>
+                                         <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            ₹{(invoice.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                        </td>
+                                        <td style={{ color: 'var(--success-color)', fontWeight: 600 }}>
+                                            ₹{(invoice.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                        </td>
+                                        <td style={{ color: 'var(--danger-color)', fontWeight: 700 }}>
+                                            ₹{((invoice.totalAmount || 0) - (invoice.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                        </td>
+                                        <td>
+                                            <span className={`badge ${
+                                                invoice.paymentStatus === 'Paid' ? 'badge-success' : 
+                                                invoice.paymentStatus === 'Partially Paid' ? 'badge-warning' : 
+                                                'badge-danger'
+                                            }`} style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'fit-content' }}>
+                                                {invoice.paymentStatus === 'Paid' ? <CheckCircle size={12} /> : 
+                                                 invoice.paymentStatus === 'Partially Paid' ? <Clock size={12} /> : 
+                                                 <AlertCircle size={12} />}
+                                                {invoice.paymentStatus || 'Unpaid'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {invoice.pdfFile ? (
+                                                    <a 
+                                                        href={invoice.pdfFile} 
+                                                        download={invoice.pdfFileName || 'Purchase_Order.pdf'} 
+                                                        className="btn" 
+                                                        style={{ 
+                                                            padding: '6px 12px', 
+                                                            fontSize: '0.85rem', 
+                                                            background: 'rgba(56, 189, 248, 0.15)', 
+                                                            color: '#38bdf8', 
+                                                            textDecoration: 'none', 
+                                                            display: 'inline-flex', 
+                                                            alignItems: 'center', 
+                                                            gap: '6px', 
+                                                            borderRadius: '8px',
+                                                            border: '1px solid rgba(56, 189, 248, 0.3)' 
+                                                        }}
+                                                        title={`Download ${invoice.pdfFileName || 'PO PDF'}`}
+                                                    >
+                                                        <Download size={14} /> Download PO
+                                                    </a>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', opacity: 0.6 }}>No PO Uploaded</span>
+                                                )}
+                                                <>
+                                                    <input 
+                                                        type="file" 
+                                                        accept="application/pdf" 
+                                                        id={`pdf-upload-${invoice._id}`} 
+                                                        onChange={(e) => handlePDFUpload(invoice._id, e)} 
+                                                        style={{ display: 'none' }} 
+                                                    />
+                                                    <label 
+                                                        htmlFor={`pdf-upload-${invoice._id}`} 
+                                                        className="btn" 
+                                                        style={{ 
+                                                            padding: '6px 12px', 
+                                                            fontSize: '0.85rem', 
+                                                            background: 'rgba(255, 255, 255, 0.05)', 
+                                                            color: 'white', 
+                                                            cursor: 'pointer', 
+                                                            display: 'inline-flex', 
+                                                            alignItems: 'center', 
+                                                            gap: '6px', 
+                                                            borderRadius: '8px',
+                                                            border: '1px solid rgba(255,255,255,0.1)'
+                                                        }}
+                                                    >
+                                                        <Upload size={14} /> {invoice.pdfFile ? 'Replace' : 'Upload PO'}
+                                                    </label>
+                                                </>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button className="btn" style={{ padding: '6px 12px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary-color)' }} onClick={() => setSelectedInvoice(invoice)}>
+                                                    <Printer size={16} style={{ marginRight: '8px' }} /> View
+                                                </button>
+                                                <button className="btn" style={{ padding: '6px 12px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }} onClick={() => {
+                                                    setPaymentData({ 
+                                                        id: invoice._id, 
+                                                        alreadyPaid: invoice.paidAmount || 0, 
+                                                        newPayment: 0, 
+                                                        totalAmount: invoice.totalAmount, 
+                                                        invoiceNumber: invoice.invoiceNumber 
+                                                    });
+                                                    setShowPaymentModal(true);
+                                                }}>
+                                                    <CreditCard size={16} style={{ marginRight: '8px' }} /> Paid
+                                                </button>
+                                                {userInfo?.role === 'Owner' && (
+                                                    <button className="btn" style={{ padding: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }} onClick={() => handleDelete(invoice._id)} title="Delete Invoice">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredInvoices.length === 0 && (
+                                    <tr><td colSpan="9" style={{ textAlign: 'center', padding: '2rem' }}>No invoices found.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            ) : (
+                <>
+                    <div className="page-header">
+                        <h1>Uploaded POs & Bills</h1>
+                        <div className="header-actions">
+                            <div className="search-container" style={{ position: 'relative' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Search client or project..."
+                                    className="form-control"
+                                    style={{ paddingLeft: '40px' }}
+                                    value={uploadSearchTerm}
+                                    onChange={(e) => setUploadSearchTerm(e.target.value)}
+                                />
+                                <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                            </div>
+                            <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
+                                <Plus size={18} style={{ marginRight: '8px' }} /> Upload PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="glass-card table-container">
+                        <table className="glass-table">
+                            <thead>
+                                <tr>
+                                    <th>Client / Company</th>
+                                    <th>Project Name</th>
+                                    <th>File Name</th>
+                                    <th>Upload Date</th>
+                                    <th style={{ textAlign: 'right' }}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredDocs.map(doc => (
+                                    <tr key={doc._id}>
+                                        <td style={{ padding: '15px 0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                                                <Building2 size={16} className="text-accent" />
+                                                {doc.clientName}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span style={{ color: 'var(--text-primary)' }}>{doc.projectName}</span>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+                                                <FileText size={14} className="text-primary" />
+                                                {doc.pdfFileName}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {new Date(doc.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                <a 
+                                                    href={doc.pdfFile} 
+                                                    download={doc.pdfFileName} 
+                                                    className="btn" 
+                                                    style={{ 
+                                                        padding: '6px 12px', 
+                                                        background: 'rgba(56, 189, 248, 0.15)', 
+                                                        color: '#38bdf8', 
+                                                        textDecoration: 'none', 
+                                                        display: 'inline-flex', 
+                                                        alignItems: 'center', 
+                                                        gap: '6px', 
+                                                        borderRadius: '8px',
+                                                        border: '1px solid rgba(56, 189, 248, 0.3)'
+                                                    }}
+                                                >
+                                                    <Download size={14} /> Download
+                                                </a>
+                                                <button 
+                                                    className="btn" 
+                                                    style={{ padding: '6px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }} 
+                                                    onClick={() => handleDeleteDoc(doc._id)} 
+                                                    title="Delete PO Document"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredDocs.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>No uploaded POs or bills found.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            )}
 
             {showPaymentModal && (
                 <div className="modal-overlay">
@@ -444,6 +822,80 @@ const Invoices = () => {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
                                 <button type="button" className="btn" style={{ background: 'rgba(255,255,255,0.1)', color: 'white' }} onClick={() => setShowPaymentModal(false)}>Cancel</button>
                                 <button type="submit" className="btn btn-primary" disabled={paymentData.newPayment <= 0}>Update Payment</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showUploadModal && (
+                <div className="modal-overlay">
+                    <div className="glass-card modal-sm" style={{ maxWidth: '450px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Upload PO or Bill PDF</h2>
+                            <button className="btn" onClick={() => setShowUploadModal(false)} style={{ padding: '0.4rem' }}><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleUploadSubmit}>
+                            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                                <div>
+                                    <label className="form-label">Client / Company Name</label>
+                                    <input 
+                                        type="text"
+                                        list="upload-clients-list" 
+                                        className="form-control" 
+                                        value={uploadForm.clientName} 
+                                        onChange={(e) => setUploadForm({ ...uploadForm, clientName: e.target.value })}
+                                        placeholder="Type or select Client / Company..."
+                                        required
+                                    />
+                                    <datalist id="upload-clients-list">
+                                        {clients.map(c => <option key={c._id} value={c.name} />)}
+                                    </datalist>
+                                </div>
+
+                                <div>
+                                    <label className="form-label">Project Name</label>
+                                    <input 
+                                        type="text" 
+                                        className="form-control" 
+                                        value={uploadForm.projectName} 
+                                        onChange={(e) => setUploadForm({ ...uploadForm, projectName: e.target.value })}
+                                        placeholder="Enter Project Name..."
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="form-label">Select PO / Bill PDF File</label>
+                                    <input 
+                                        type="file" 
+                                        accept="application/pdf"
+                                        className="form-control"
+                                        onChange={(e) => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+                                            if (file.type !== 'application/pdf') {
+                                                alert('Please select a valid PDF file.');
+                                                return;
+                                            }
+                                            if (file.size > 2 * 1024 * 1024) {
+                                                alert('File size must be less than 2MB.');
+                                                return;
+                                            }
+                                            const reader = new FileReader();
+                                            reader.readAsDataURL(file);
+                                            reader.onload = () => {
+                                                setUploadForm({ ...uploadForm, pdfFile: reader.result, pdfFileName: file.name });
+                                            };
+                                        }}
+                                        required
+                                    />
+                                    <small style={{ color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>PDF format only. Maximum size: 2MB.</small>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
+                                <button type="button" className="btn" style={{ background: 'rgba(255, 255, 255, 0.1)', color: 'white' }} onClick={() => setShowUploadModal(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={!uploadForm.clientName || !uploadForm.projectName || !uploadForm.pdfFile}>Upload Document</button>
                             </div>
                         </form>
                     </div>

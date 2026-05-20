@@ -57,11 +57,11 @@ const jobWorkOrderSchema = new mongoose.Schema(
         },
         outputProduct: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Product',
+            ref: 'JobWorkProduct',
         },
         outputPart: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Part',
+            ref: 'JobWorkPart',
         },
         isDeleted: {
             type: Boolean,

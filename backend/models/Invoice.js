@@ -98,6 +98,12 @@ const invoiceSchema = new mongoose.Schema(
             }],
             default: []
         },
+        pdfFile: {
+            type: String,
+        },
+        pdfFileName: {
+            type: String,
+        },
         isDeleted: {
             type: Boolean,
             default: false,

@@ -33,8 +33,12 @@ export const markAttendance = asyncHandler(async (req, res) => {
     let { userId, date, status } = req.body;
     const ownerId = req.user.role === 'Owner' ? req.user.email : req.user.owner;
     
-    // If user is not Owner, they are marking their own attendance
+    // Only Owner and Engineer roles are allowed to mark attendance
     if (req.user.role !== 'Owner') {
+        if (req.user.role !== 'Engineer') {
+            res.status(403);
+            throw new Error('Attendance can only be marked by Owner or Engineer.');
+        }
         userId = req.user._id;
     } else {
         // Check if user exists and owned
