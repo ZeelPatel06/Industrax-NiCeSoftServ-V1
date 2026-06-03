@@ -28,6 +28,7 @@ import { protect } from './middleware/authMiddleware.js';
 import moduleRoutes from './routes/moduleRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import { isModuleEnabled } from './middleware/moduleMiddleware.js';
+import morgan from "morgan";
 
 // Load env vars
 dotenv.config();
@@ -78,6 +79,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(morgan('combined')); // Log all requests (can be adjusted for production)
 
 // Routes
 app.use('/api/auth', authRoutes);
