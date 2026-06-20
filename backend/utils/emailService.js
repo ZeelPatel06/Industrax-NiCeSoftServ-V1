@@ -1,44 +1,38 @@
-import nodemailer from "nodemailer";
+// Updated email service to use Brevo (Sendinblue) SMTP via our generic mailService utility
+import { sendMail } from "./mailService.js";
 import dns from "dns";
 
 dns.setDefaultResultOrder("ipv4first");
 
+/**
+ * Sends the OTP email using Brevo (Sendinblue) SMTP.
+ * Uses the generic `sendMail` helper which expects {to, subject, text, html}.
+ */
 export const sendOTPEmail = async (email, otp) => {
-    try {
-        const transporter = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 465,
-            secure: true,
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2>Industrax Verification</h2>
+      <p>Hello,</p>
+      <p>Thank you for registering with Industrax. Please use the verification code below to complete your registration:</p>
+      <div style="font-size: 24px; font-weight: bold; margin: 20px 0; padding: 15px; background-color: #f3f4f6; text-align: center; border-radius: 5px;">
+        ${otp}
+      </div>
+      <p>This code is valid for 10 minutes. If you did not request this, please safely ignore this email.</p>
+      <br>
+      <p>Best regards,<br>The Industrax Team</p>
+    </div>`;
 
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-
-            connectionTimeout: 30000,
-            greetingTimeout: 30000,
-            socketTimeout: 30000,
-        });
-        
-        await transporter.verify();
-
-        console.log("SMTP Connected");
-
-        const mailOptions = {
-            from: `"Industrax" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: "Verify Your Email - Industrax",
-            html: ` <div style="font-family: Arial, sans-serif; background-color: #f4f7fa; padding: 40px 20px;"> <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);"> <div style="background: #111827; padding: 25px; text-align: center;"> <h1 style="color: #ffffff; margin: 0;">Industrax</h1> <p style="color: #9ca3af; margin-top: 8px;"> Industrial Solutions Simplified </p> </div> <div style="padding: 40px 30px;"> <h2 style="color: #111827; margin-bottom: 20px;"> Verify Your Email </h2> <p style="font-size: 16px; color: #4b5563; line-height: 1.6;"> Welcome to <strong>Industrax</strong>. Use the verification code below to complete your registration. </p> <div style="text-align: center; margin: 35px 0;"> <div style=" display: inline-block; background: #111827; color: #ffffff; font-size: 32px; letter-spacing: 8px; padding: 18px 35px; border-radius: 10px; font-weight: bold; "> ${otp} </div> </div> <p style="font-size: 15px; color: #6b7280; line-height: 1.6;"> This OTP is valid for <strong>10 minutes</strong>. Do not share this code with anyone. </p> <p style="font-size: 15px; color: #6b7280; line-height: 1.6;"> If you did not request this email, you can safely ignore it. </p> </div> <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;"> <p style="margin: 0; color: #9ca3af; font-size: 14px;"> © 2026 Industrax. All rights reserved. </p> </div> </div> </div> `,
-        };
-
-        const result = await transporter.sendMail(mailOptions);
-
-        console.log("Email sent:", result.response);
-
-        return result;
-
-    } catch (error) {
-        console.error("EMAIL ERROR:", error);
-        throw error;
-    }
+  try {
+    const result = await sendMail({
+      to: email,
+      subject: "Your Industrax Verification Code",
+      html,
+      text: `Hello,\n\nYour Industrax verification code is: ${otp}\n\nThis code is valid for 10 minutes.\n\nBest regards,\nThe Industrax Team`,
+    });
+    console.log("OTP email sent via Brevo:", result.messageId || result.response);
+    return result;
+  } catch (err) {
+    console.error("Failed to send OTP via Brevo:", err);
+    throw err;
+  }
 };

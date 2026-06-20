@@ -118,17 +118,14 @@ const registerUser = asyncHandler(async (req, res) => {
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
     let user;
-    const isDevMode = process.env.DEVELOPMENT_MODE === 'true';
-
     if (userExists && !userExists.isVerified) {
         userExists.name = name;
         userExists.mobile = mobile;
         userExists.password = hashedPassword;
         userExists.role = 'Owner';
         userExists.owner = null;
-        userExists.isVerified = isDevMode;
-        userExists.otp = isDevMode ? undefined : otp;
-        userExists.otpExpires = isDevMode ? undefined : otpExpires;
+        userExists.otp = otp;
+        userExists.otpExpires = otpExpires;
         await userExists.save();
         user = userExists;
     } else {
@@ -139,31 +136,13 @@ const registerUser = asyncHandler(async (req, res) => {
             password: hashedPassword,
             role: 'Owner',
             owner: null,
-            isVerified: isDevMode,
-            otp: isDevMode ? undefined : otp,
-            otpExpires: isDevMode ? undefined : otpExpires
+            isVerified: false,
+            otp: otp,
+            otpExpires: otpExpires
         });
     }
 
     if (user) {
-        if (isDevMode) {
-            // No separate Employee record needed anymore
-            if (user.role === 'Engineer' || user.role === 'Operator') {
-                // Roles are already set in User model
-            }
-
-            generateToken(res, user._id);
-            return res.status(201).json({
-                _id: user._id,
-                name: user.name,
-                role: user.role,
-                selectedModules: [],
-                isVerified: true,
-                token: generateToken(res, user._id), // Return token in body as fallback
-                message: 'Development Mode: User registered and verified automatically'
-            });
-        }
-
         try {
             await sendOTPEmail(email, otp);
             res.status(201).json({ message: 'OTP sent to your email. Please verify.' });
