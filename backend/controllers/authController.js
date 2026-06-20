@@ -117,6 +117,9 @@ const registerUser = asyncHandler(async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
+    // Temporarily skipping OTP verification as requested
+    const isDevMode = true; 
+
     let user;
     if (userExists && !userExists.isVerified) {
         userExists.name = name;
@@ -124,8 +127,9 @@ const registerUser = asyncHandler(async (req, res) => {
         userExists.password = hashedPassword;
         userExists.role = 'Owner';
         userExists.owner = null;
-        userExists.otp = otp;
-        userExists.otpExpires = otpExpires;
+        userExists.isVerified = isDevMode;
+        userExists.otp = isDevMode ? undefined : otp;
+        userExists.otpExpires = isDevMode ? undefined : otpExpires;
         await userExists.save();
         user = userExists;
     } else {
@@ -136,13 +140,26 @@ const registerUser = asyncHandler(async (req, res) => {
             password: hashedPassword,
             role: 'Owner',
             owner: null,
-            isVerified: false,
-            otp: otp,
-            otpExpires: otpExpires
+            isVerified: isDevMode,
+            otp: isDevMode ? undefined : otp,
+            otpExpires: isDevMode ? undefined : otpExpires
         });
     }
 
     if (user) {
+        if (isDevMode) {
+            generateToken(res, user._id);
+            return res.status(201).json({
+                _id: user._id,
+                name: user.name,
+                role: user.role,
+                selectedModules: [],
+                isVerified: true,
+                token: generateToken(res, user._id), // Return token in body as fallback
+                message: 'OTP verification temporarily bypassed: User registered and verified automatically'
+            });
+        }
+
         try {
             await sendOTPEmail(email, otp);
             res.status(201).json({ message: 'OTP sent to your email. Please verify.' });
